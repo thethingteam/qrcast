@@ -1,4 +1,5 @@
 import { cimbar, type CimbarMode } from 'qrcast/cimbar';
+import { qr } from 'qrcast/qr';
 import { createSender, type Sender } from 'qrcast/sender';
 import { describeError, randomBody, randomName } from './random.js';
 
@@ -27,19 +28,33 @@ async function body(): Promise<{ bytes: Uint8Array; name: string; type: string }
   return { bytes: randomBody(seed, size), name: randomName(seed, size), type: 'application/octet-stream' };
 }
 
+function showCodecOptions(): void {
+  const isQr = $<HTMLSelectElement>('codec').value === 'qr';
+  $('cimbar-options').hidden = isQr;
+  $('qr-options').hidden = !isQr;
+}
+$<HTMLSelectElement>('codec').addEventListener('change', showCodecOptions);
+showCodecOptions();
+
+function codec() {
+  const fps = Number($<HTMLInputElement>('fps').value);
+  if ($<HTMLSelectElement>('codec').value === 'qr') {
+    return qr({
+      layers: Number($<HTMLSelectElement>('layers').value) as 1 | 3,
+      blockSize: Number($<HTMLInputElement>('block-size').value),
+      fps,
+    });
+  }
+  return cimbar({ mode: $<HTMLSelectElement>('mode').value as CimbarMode, fps });
+}
+
 form.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
     const { bytes, name, type } = await body();
-    // A new codec per start, so mode and fps changes apply.
+    // A new codec per start, so option changes apply.
     sender?.destroy();
-    sender = createSender({
-      codec: cimbar({
-        mode: $<HTMLSelectElement>('mode').value as CimbarMode,
-        fps: Number($<HTMLInputElement>('fps').value),
-      }),
-      canvas,
-    });
+    sender = createSender({ codec: codec(), canvas });
     sender.on('state', show);
     sender.on('frame', ({ frame }) => {
       frames = frame;

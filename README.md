@@ -5,8 +5,8 @@ The sender shows an animated sequence of codes, the receiver films it and gets
 the bytes back. No network, no pairing, no back channel.
 
 > **Status: early development.** The core byte protocol, the sender, the
-> receiver and the cimbar codec work. The QR codec is not built yet, and the
-> package is not published. Expect breaking changes until 1.0.
+> receiver, the cimbar codec and the QR codec work. The package is not
+> published. Expect breaking changes until 1.0.
 
 ## Why
 
@@ -62,6 +62,7 @@ sender.stop();
 
 ```ts
 import { cimbar } from 'qrcast/cimbar';
+import { qr } from 'qrcast/qr';
 import { createReceiver } from 'qrcast/receiver';
 
 const video = document.querySelector('video')!;
@@ -70,7 +71,8 @@ video.srcObject = await navigator.mediaDevices.getUserMedia({
 });
 await video.play();
 
-const receiver = createReceiver({ codecs: [cimbar()], video });
+const receiver = createReceiver({ codecs: [cimbar(), qr()], video });
+receiver.on('lock', ({ codec }) => console.log(`receiving with ${codec}`));
 receiver.on('progress', ({ progress }) => console.log(`${Math.round(progress * 100)} %`));
 
 const result = await receiver.start();
@@ -88,7 +90,8 @@ if (result.kind === 'qrcast') {
   that `start` begins scanning at once. Each `start` uses fresh decoders.
 - **Detection:** the receiver tries its codecs in turn, locks to the first
   one that decodes a frame (the `lock` event), then reports `progress` from
-  0 to 1.
+  0 to 1. Pass `[cimbar(), qr()]` to receive from a sender that uses either
+  codec. A QR code that is not a qrcast frame, such as a URL, never locks.
 - **States:** `idle`, `loading`, `detecting`, `receiving` and `destroyed`.
 - **Results:** `{ kind: 'qrcast', meta, bytes }`, where `meta` holds the
   original `size` and the sender's optional `type` and `name`. Treat `name`
@@ -107,11 +110,11 @@ if (result.kind === 'qrcast') {
 The sender picks the codec; the receiver detects it from the first frame it
 decodes.
 
-| Codec | Speed (prototype, real phone) | Needs | Status |
+| Codec | Speed (prototype, real phone) | Needs to send | Status |
 |---|---|---|---|
 | `cimbar` (default) | ~92 KB/s | WebGL, WebAssembly | available |
-| `qr`, `layers: 3` (color) | ~31 KB/s | Canvas 2D | planned |
-| `qr`, `layers: 1` (black and white) | ~12.5 KB/s | Canvas 2D | planned |
+| `qr`, `layers: 3` (color) | ~31 KB/s | nothing special | available |
+| `qr`, `layers: 1` (black and white, the default) | ~12.5 KB/s | nothing special | available |
 
 ### cimbar
 
@@ -131,6 +134,42 @@ which ships in the package next to the code that loads it.
   setups where they cannot be served next to the code (see below).
 - Each cimbar file is named `qrcast.bin`, so the official cimbar web receiver
   saves the envelope under that name.
+
+### qr
+
+`qr(options)` from `qrcast/qr` is the fallback for browsers that cannot run
+cimbar. It shows QR codes, and a receiver reads them with the unmodified
+[zxing-wasm](https://github.com/Sec-ant/zxing-wasm) 3.1.4 reader.
+
+```ts
+import { qr } from 'qrcast/qr';
+import { createSender } from 'qrcast/sender';
+
+const sender = createSender({ codec: qr({ layers: 3 }), canvas });
+```
+
+- `layers`: `1` (default) for black and white, or `3` for color: three QR
+  codes in the red, green and blue channels of each picture, about 2.5 times
+  faster. Black and white is the default because it is the most robust in
+  poor light and on weak screens or cameras. A receiver ignores `layers` and
+  decides per capture whether the picture is color.
+- `blockSize`: bytes in each QR code, from 100 to 2000 (default 800).
+- `fps`: pictures per second when sending, from 1 to 30 (default 15).
+- A transfer has at most 5000 blocks, so it carries up to `blockSize` × 5000
+  bytes: 4,000,000 with the defaults. The envelope body is compressed before
+  it is split. The receiver rebuilds the data from any frames in any order,
+  because the sender adds a repair frame after every four source frames.
+- QR files do not carry a file name, so with `acceptRaw` a raw file arrives
+  with `name` `''`.
+- **Sending fetches nothing**: it draws on the main thread and needs no
+  worker, no wasm and no WebGL. The canvas is square, at most 1024 pixels
+  wide, and keeps its size for the whole transfer. Scale it with CSS and
+  `image-rendering: pixelated`, so that the browser does not blur the
+  modules.
+- Receiving decodes in a worker. About 1 MB is fetched when a receiver starts
+  or preloads: the worker, the zxing script (37 KB) and its wasm (954 KB).
+- `glueUrl`, `wasmUrl` and `workerFactory` replace the bundled files, the same
+  as for cimbar.
 
 ## Wire format
 
@@ -183,8 +222,8 @@ try {
 
 The codec references its files with `new URL('./file', import.meta.url)`,
 which Vite, webpack, Rollup and esbuild understand: your build copies the
-worker, the libcimbar script and the wasm next to your own assets, and they
-are fetched from your origin. qrcast never contacts any other host.
+worker, the libcimbar or zxing-wasm scripts and the wasm files next to your
+own assets, and they are fetched from your origin. qrcast never contacts any other host.
 
 - **Vite:** exclude qrcast from dependency pre-bundling, or the files 404 in
   development:
@@ -198,7 +237,7 @@ are fetched from your origin. qrcast never contacts any other host.
 
 - **Offline (PWA):** cache the emitted `.wasm` file with your other assets.
   With `vite-plugin-pwa`, add `wasm` to the glob patterns and raise the size
-  limit, because the wasm is about 1.94 MB:
+  limit, because the largest wasm is about 1.94 MB:
 
   ```ts
   VitePWA({
@@ -212,7 +251,7 @@ are fetched from your origin. qrcast never contacts any other host.
 - **Served from another origin** (for example an ESM CDN): browsers do not
   start workers from another origin, so a transfer fails with
   `codec-init-failed`. Host the files yourself and pass `workerFactory`
-  (and `glueUrl` and `wasmUrl` if needed) to `cimbar()`.
+  (and `glueUrl` and `wasmUrl` if needed) to `cimbar()` or `qr()`.
 
 ## Requirements
 
@@ -222,6 +261,9 @@ are fetched from your origin. qrcast never contacts any other host.
 - Sending with cimbar: Web Workers, WebAssembly, WebGL on `OffscreenCanvas`,
   and `CompressionStream`.
 - Receiving with cimbar: Web Workers, WebAssembly and `VideoFrame`.
+- Sending with QR: nothing beyond Canvas 2D and `createImageBitmap`.
+  Receiving with QR: Web Workers, WebAssembly and `VideoFrame`, plus
+  `OffscreenCanvas` 2D in workers (Safari 16.4).
 - Tested automatically in Chromium. Safari needs version 17 or later to send
   (WebGL on `OffscreenCanvas`) and 16.4 or later to receive; Safari and
   Firefox are not tested yet. A missing feature is reported as
@@ -251,7 +293,7 @@ transfers between real devices; it depends on the built package, so run
 Repository layout:
 
 ```
-packages/qrcast/   the published library (src, test, vendor/cimbar)
+packages/qrcast/   the published library (src, test, vendor/cimbar, vendor/zxing-wasm)
 apps/demo/         unstyled demo app (private, not published)
 openspec/          specs and change proposals
 docs/              design notes: decisions not yet captured in specs
@@ -271,4 +313,9 @@ Contributions:
 
 [MIT](LICENSE). The bundled libcimbar files ship unmodified under their own
 MPL-2.0 license (`packages/qrcast/vendor/cimbar/LICENSE`, copied next to them
-in the package).
+in the package). The bundled zxing-wasm files ship unmodified under its MIT
+license, and zxing-cpp inside the wasm under Apache-2.0
+(`packages/qrcast/vendor/zxing-wasm/LICENSE` and `LICENSE.zxing-cpp`, copied
+next to them in the package). The QR encoder is adapted from Project Nayuki's
+QR Code generator library (MIT; the notice stays in
+`packages/qrcast/src/codecs/qr/qrcodegen.ts`).

@@ -24,7 +24,7 @@ test('the built QrcastError works', async () => {
   expect(error.name).toBe('QrcastError');
 });
 
-test.each(['qrcast/sender', 'qrcast/receiver', 'qrcast/cimbar'])('%s imports in Node', async (specifier) => {
+test.each(['qrcast/sender', 'qrcast/receiver', 'qrcast/cimbar', 'qrcast/qr'])('%s imports in Node', async (specifier) => {
   await expect(import(/* @vite-ignore */ specifier)).resolves.toBeTypeOf('object');
 });
 
@@ -35,6 +35,19 @@ test('the build copies the cimbar assets next to the codec', () => {
     'cimbar_js.2026-08-21T2336.wasm',
     'cimbar-worker.js',
     'LICENSE',
+  ]) {
+    expect(existsSync(new URL(file, dir)), file).toBe(true);
+  }
+});
+
+test('the build copies the QR assets next to the codec', () => {
+  const dir = new URL('../dist/codecs/qr/', import.meta.url);
+  for (const file of [
+    'zxing_reader.js',
+    'zxing_reader.wasm',
+    'qr-worker.js',
+    'LICENSE',
+    'LICENSE.zxing-cpp',
   ]) {
     expect(existsSync(new URL(file, dir)), file).toBe(true);
   }

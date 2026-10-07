@@ -11,6 +11,7 @@
     "test"
   ],
   "exclude": [
-    "src/codecs/cimbar/worker-globals.d.ts"
+    "src/codecs/cimbar/worker-globals.d.ts",
+    "src/codecs/qr/worker-globals.d.ts"
   ]
 }

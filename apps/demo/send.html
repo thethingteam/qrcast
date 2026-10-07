@@ -26,14 +26,31 @@
         <input id="file" type="file" />
       </p>
       <p>
-        <label>Mode
-          <select id="mode">
-            <option>B</option>
-            <option>Bm</option>
-            <option>Bu</option>
-            <option>4C</option>
+        <label>Codec
+          <select id="codec">
+            <option value="cimbar">cimbar</option>
+            <option value="qr">QR</option>
           </select>
         </label>
+        <span id="cimbar-options">
+          <label>Mode
+            <select id="mode">
+              <option>B</option>
+              <option>Bm</option>
+              <option>Bu</option>
+              <option>4C</option>
+            </select>
+          </label>
+        </span>
+        <span id="qr-options" hidden>
+          <label>Layers
+            <select id="layers">
+              <option value="1">1 (black and white)</option>
+              <option value="3">3 (color)</option>
+            </select>
+          </label>
+          <label>Block size <input id="block-size" type="number" min="100" max="2000" value="800" size="5" /></label>
+        </span>
         <label>fps <input id="fps" type="number" min="1" max="30" value="15" size="3" /></label>
         <button type="submit">Start</button>
         <button id="stop" type="button">Stop</button>

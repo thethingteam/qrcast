@@ -10,5 +10,10 @@
     "noEmit": true,
     "types": []
   },
-  "files": ["src/codecs/cimbar/cimbar-worker.js", "src/codecs/cimbar/worker-globals.d.ts"]
+  "files": [
+    "src/codecs/cimbar/cimbar-worker.js",
+    "src/codecs/cimbar/worker-globals.d.ts",
+    "src/codecs/qr/qr-worker.js",
+    "src/codecs/qr/worker-globals.d.ts"
+  ]
 }

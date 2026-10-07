@@ -68,3 +68,45 @@ describe('QrcastError types', () => {
     ).toEqualTypeOf<'invalid-input'>();
   });
 });
+
+describe('codes added for senders, receivers and codecs', () => {
+  test.each([
+    ['unsupported-environment', { feature: 'video-frame' }],
+    ['codec-init-failed', { codec: 'cimbar' }],
+    ['codec-aborted', { codec: 'cimbar', role: 'sender', size: 1000000 }],
+    ['codec-aborted', { codec: 'cimbar', role: 'receiver', progress: 0.4 }],
+    ['codec-aborted', { codec: 'cimbar', role: 'receiver', progress: null }],
+    ['cancelled', { reason: 'destroyed' }],
+    ['invalid-state', { state: 'destroyed' }],
+    ['invalid-input', { reason: 'option' }],
+  ] as const)('%s carries its details', (code, details) => {
+    const error = new QrcastError(code, details as never, 'x');
+    expect(error.code).toBe(code);
+    expect(error.details).toEqual(details);
+  });
+
+  test('codec-aborted details narrow by role', () => {
+    const error: QrcastError = new QrcastError(
+      'codec-aborted',
+      { codec: 'cimbar', role: 'receiver', progress: 0.4 },
+      'aborted',
+    );
+    if (error.code !== 'codec-aborted') throw new Error('expected codec-aborted');
+    if (error.details.role === 'sender') {
+      expectTypeOf(error.details.size).toEqualTypeOf<number>();
+    } else {
+      expectTypeOf(error.details.progress).toEqualTypeOf<number | null>();
+      // @ts-expect-error: receiver details have no size
+      void error.details.size;
+    }
+  });
+
+  test('details are tied to the new codes', () => {
+    // @ts-expect-error: unknown feature
+    void new QrcastError('unsupported-environment', { feature: 'gpu' }, 'x');
+    // @ts-expect-error: a sender abort needs the envelope size
+    void new QrcastError('codec-aborted', { codec: 'cimbar', role: 'sender', progress: 0 }, 'x');
+    // @ts-expect-error: unknown cancel reason
+    void new QrcastError('cancelled', { reason: 'timeout' }, 'x');
+  });
+});

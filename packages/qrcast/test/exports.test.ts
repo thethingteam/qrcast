@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, expect, test } from 'vitest';
 
@@ -21,4 +22,20 @@ test('the built QrcastError works', async () => {
   const error = new QrcastError('invalid-input', { reason: 'body' }, 'x');
   expect(error).toBeInstanceOf(Error);
   expect(error.name).toBe('QrcastError');
+});
+
+test.each(['qrcast/sender', 'qrcast/receiver', 'qrcast/cimbar'])('%s imports in Node', async (specifier) => {
+  await expect(import(/* @vite-ignore */ specifier)).resolves.toBeTypeOf('object');
+});
+
+test('the build copies the cimbar assets next to the codec', () => {
+  const dir = new URL('../dist/codecs/cimbar/', import.meta.url);
+  for (const file of [
+    'cimbar_js.2026-08-21T2336.js',
+    'cimbar_js.2026-08-21T2336.wasm',
+    'cimbar-worker.js',
+    'LICENSE',
+  ]) {
+    expect(existsSync(new URL(file, dir)), file).toBe(true);
+  }
 });

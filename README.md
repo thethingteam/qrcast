@@ -4,10 +4,9 @@ Send a `Uint8Array` from one device to another through a screen and a camera.
 The sender shows an animated sequence of codes, the receiver films it and gets
 the bytes back. No network, no pairing, no back channel.
 
-> **Status: early development.** Only the core byte protocol (envelope, size
-> check, error types) is implemented. The cimbar and QR codecs, the sender and
-> the receiver are not built yet, and the package is not published. Expect
-> breaking changes until 1.0.
+> **Status: early development.** The core byte protocol, the sender, the
+> receiver and the cimbar codec work. The QR codec is not built yet, and the
+> package is not published. Expect breaking changes until 1.0.
 
 ## Why
 
@@ -21,20 +20,117 @@ the bytes back. No network, no pairing, no back channel.
 - **One-way.** Works across an air gap: the receiver never talks back to the
   sender.
 
-## Codecs (planned)
+## Sending
+
+```ts
+import { cimbar } from 'qrcast/cimbar';
+import { createSender } from 'qrcast/sender';
+
+const canvas = document.querySelector('canvas')!;
+const sender = createSender({ codec: cimbar(), canvas });
+
+sender.on('frame', ({ frame }) => console.log(`frame ${frame}`));
+sender.on('error', ({ error }) => console.error(error.code, error.details));
+
+const bytes = new TextEncoder().encode(JSON.stringify({ hello: 'world' }));
+await sender.start(bytes, { type: 'application/json', name: 'hello.json' });
+// ... later
+sender.stop();
+```
+
+- **The canvas is yours.** Place and size it with CSS. The sender only sets
+  its `width` and `height` to the frame's pixel size (1040 × 1040 for cimbar),
+  and draws through a `bitmaprenderer` context, so the canvas must not have
+  another context.
+- **`start(bytes, hints)`** wraps the bytes in an envelope, checks the size,
+  loads the codec, and resolves once the first frame is on the canvas. It
+  then plays until `stop()`. Calling `start` again replaces the transfer.
+  `destroy()` releases everything.
+- **States:** `idle`, `loading`, `playing` and `destroyed` (`sender.state`
+  and the `state` event).
+- **Events:** `state`, `frame` (the frame count since `start`, from 1), and
+  `error` for a codec failure while playing; the sender is then `idle`
+  again. `on()` returns a function that removes the listener.
+- **Errors from `start`:** `payload-too-large` and `invalid-input` before
+  anything loads, `unsupported-environment`, `codec-init-failed`,
+  `codec-aborted`, `cancelled` when `stop`, a new `start` or `destroy` ends
+  it first, and `invalid-state` after `destroy`.
+- Keep the screen awake while sending (for example with the Screen Wake Lock
+  API); qrcast does not do it for you.
+
+## Receiving
+
+```ts
+import { cimbar } from 'qrcast/cimbar';
+import { createReceiver } from 'qrcast/receiver';
+
+const video = document.querySelector('video')!;
+video.srcObject = await navigator.mediaDevices.getUserMedia({
+  video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+});
+await video.play();
+
+const receiver = createReceiver({ codecs: [cimbar()], video });
+receiver.on('progress', ({ progress }) => console.log(`${Math.round(progress * 100)} %`));
+
+const result = await receiver.start();
+if (result.kind === 'qrcast') {
+  console.log(result.meta.name, result.meta.type, result.bytes);
+}
+```
+
+- **The camera is yours.** The app opens the camera and plays it in a
+  `<video>` element. The receiver only reads its frames: it never calls
+  `getUserMedia` and never changes the element. While the video has no
+  frame, the receiver keeps waiting.
+- **`start()`** loads the decoders, reads frames until a file is complete,
+  and resolves with it. `preload()` loads the decoders ahead of time, so
+  that `start` begins scanning at once. Each `start` uses fresh decoders.
+- **Detection:** the receiver tries its codecs in turn, locks to the first
+  one that decodes a frame (the `lock` event), then reports `progress` from
+  0 to 1.
+- **States:** `idle`, `loading`, `detecting`, `receiving` and `destroyed`.
+- **Results:** `{ kind: 'qrcast', meta, bytes }`, where `meta` holds the
+  original `size` and the sender's optional `type` and `name`. Treat `name`
+  as untrusted input before using it as a file name.
+- **`acceptRaw: true`** also accepts files sent without a qrcast envelope,
+  such as those of the official cimbar web sender, as
+  `{ kind: 'raw', name, bytes }` (`name` is `''` when the sender gave none).
+  Without it, such a file fails with `unsupported-format`.
+- **Errors from `start`:** `unsupported-environment`, `codec-init-failed`,
+  `codec-aborted`, the envelope errors (`unsupported-format`,
+  `malformed-envelope`), `cancelled` after `stop()` or `destroy()`, and
+  `invalid-state` when a `start` is already pending or after `destroy`.
+
+## Codecs
 
 The sender picks the codec; the receiver detects it from the first frame it
 decodes.
 
-| Codec | Speed (prototype, real phone) | Needs | When to use |
+| Codec | Speed (prototype, real phone) | Needs | Status |
 |---|---|---|---|
-| `cimbar` (default) | ~92 KB/s | WebGL, WebAssembly | normal use |
-| `qr`, `layers: 3` (color) | ~31 KB/s | Canvas 2D | cimbar unavailable |
-| `qr`, `layers: 1` (black and white) | ~12.5 KB/s | Canvas 2D | poor light or color, most robust |
+| `cimbar` (default) | ~92 KB/s | WebGL, WebAssembly | available |
+| `qr`, `layers: 3` (color) | ~31 KB/s | Canvas 2D | planned |
+| `qr`, `layers: 1` (black and white) | ~12.5 KB/s | Canvas 2D | planned |
 
-The cimbar codec uses [libcimbar](https://github.com/sz3/libcimbar)
-(MPL-2.0). The QR codec uses its own fountain code, so frames can be missed
-or arrive in any order.
+### cimbar
+
+`cimbar(options)` from `qrcast/cimbar` uses the unmodified official
+[libcimbar](https://github.com/sz3/libcimbar) v0.6.8 wasm release (MPL-2.0),
+which ships in the package next to the code that loads it.
+
+- Up to 16 MiB per transfer. The envelope body is not compressed again,
+  because cimbar compresses with zstd itself.
+- `mode`: `B` (default), `Bm`, `Bu` or `4C`. A sender uses `B` unless told
+  otherwise; a receiver without `mode` detects the mode.
+- `fps`: frames per second when sending, from 1 to 30 (default 15).
+- The encoder and decoders run in workers. Creating the codec loads
+  nothing; about 2 MB (mostly the 1.94 MB wasm) is fetched when a transfer
+  starts or a receiver preloads.
+- `glueUrl`, `wasmUrl` and `workerFactory` replace the bundled files, for
+  setups where they cannot be served next to the code (see below).
+- Each cimbar file is named `qrcast.bin`, so the official cimbar web receiver
+  saves the envelope under that name.
 
 ## Wire format
 
@@ -76,14 +172,63 @@ try {
 | `payload-too-large` | The envelope is larger than the codec can carry. Raised before any encoding starts. |
 | `unsupported-format` | Unknown magic, envelope version or flag bit, or oversized meta. |
 | `malformed-envelope` | The payload looks like qrcast but is truncated or corrupt. |
-| `invalid-input` | The caller passed a value the library cannot use. |
+| `invalid-input` | The caller passed a value the library cannot use (`reason`: `body`, `meta-field`, `meta-too-large`, `codec` or `option`). |
+| `unsupported-environment` | The browser lacks a feature the codec needs (`feature`: `worker`, `webassembly`, `webgl` or `video-frame`). |
+| `codec-init-failed` | The codec's worker, script or wasm could not be loaded. |
+| `codec-aborted` | The codec's wasm instance aborted, for example out of memory. Carries the envelope `size` (sender) or the last `progress` (receiver). |
+| `cancelled` | `stop()`, a new `start()` or `destroy()` ended a pending call. |
+| `invalid-state` | The call is not allowed in the current state, such as `start()` after `destroy()`. |
+
+## Bundlers and offline use
+
+The codec references its files with `new URL('./file', import.meta.url)`,
+which Vite, webpack, Rollup and esbuild understand: your build copies the
+worker, the libcimbar script and the wasm next to your own assets, and they
+are fetched from your origin. qrcast never contacts any other host.
+
+- **Vite:** exclude qrcast from dependency pre-bundling, or the files 404 in
+  development:
+
+  ```ts
+  // vite.config.ts
+  export default defineConfig({
+    optimizeDeps: { exclude: ['qrcast'] },
+  });
+  ```
+
+- **Offline (PWA):** cache the emitted `.wasm` file with your other assets.
+  With `vite-plugin-pwa`, add `wasm` to the glob patterns and raise the size
+  limit, because the wasm is about 1.94 MB:
+
+  ```ts
+  VitePWA({
+    workbox: {
+      globPatterns: ['**/*.{js,css,html,wasm}'],
+      maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+    },
+  });
+  ```
+
+- **Served from another origin** (for example an ESM CDN): browsers do not
+  start workers from another origin, so a transfer fails with
+  `codec-init-failed`. Host the files yourself and pass `workerFactory`
+  (and `glueUrl` and `wasmUrl` if needed) to `cimbar()`.
 
 ## Requirements
 
-- ESM only. Node 22 or later for the core.
-- Browsers: `CompressionStream`, plus WebGL and WebAssembly for cimbar.
-- Content Security Policy: WebAssembly needs `'wasm-unsafe-eval'` (once the
-  codecs land).
+- ESM only. Node 22 or later for the core; the sender and receiver entry
+  points can be imported in Node (for server-side rendering) but run only in
+  browsers.
+- Sending with cimbar: Web Workers, WebAssembly, WebGL on `OffscreenCanvas`,
+  and `CompressionStream`.
+- Receiving with cimbar: Web Workers, WebAssembly and `VideoFrame`.
+- Tested automatically in Chromium. Safari needs version 17 or later to send
+  (WebGL on `OffscreenCanvas`) and 16.4 or later to receive; Safari and
+  Firefox are not tested yet. A missing feature is reported as
+  `unsupported-environment`.
+- Content Security Policy: WebAssembly needs `'wasm-unsafe-eval'` in
+  `script-src`, and the workers need `worker-src 'self'` (or a `script-src`
+  that allows your origin). No `blob:` URLs are used.
 
 ## Development
 
@@ -91,15 +236,23 @@ Requires Node 22+ and pnpm 10.
 
 ```sh
 pnpm install
-pnpm build      # tsc, emits packages/qrcast/dist
-pnpm test       # type checks, then Vitest
+pnpm --filter qrcast exec playwright install chromium   # once, for the browser tests
+pnpm build          # tsc and the asset copy: packages/qrcast/dist, then the demo
+pnpm test           # type checks, then the Node tests
+pnpm test:browser   # browser tests in headless Chromium (real cimbar loopback)
 pnpm typecheck
+pnpm --filter demo dev   # the demo app over HTTPS, reachable from phones on the LAN
 ```
+
+The demo (`apps/demo`) has a send page and a receive page for trying
+transfers between real devices; it depends on the built package, so run
+`pnpm build` first.
 
 Repository layout:
 
 ```
-packages/qrcast/   the published library (src, test)
+packages/qrcast/   the published library (src, test, vendor/cimbar)
+apps/demo/         unstyled demo app (private, not published)
 openspec/          specs and change proposals
 docs/              design notes: decisions not yet captured in specs
 ```
@@ -116,5 +269,6 @@ Contributions:
 
 ## License
 
-[MIT](LICENSE). The bundled libcimbar files will ship unmodified under their
-own MPL-2.0 license.
+[MIT](LICENSE). The bundled libcimbar files ship unmodified under their own
+MPL-2.0 license (`packages/qrcast/vendor/cimbar/LICENSE`, copied next to them
+in the package).

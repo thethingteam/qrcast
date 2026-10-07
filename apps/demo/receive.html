@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>qrcast receive</title>
+    <style>
+      video {
+        display: block;
+        max-width: 95vw;
+        max-height: 50vh;
+      }
+    </style>
+  </head>
+  <body>
+    <p><a href="index.html">qrcast demo</a> / receive</p>
+    <p>
+      <button id="camera" type="button">Open camera</button>
+      <label>Mode
+        <select id="mode">
+          <option value="">auto</option>
+          <option>B</option>
+          <option>Bm</option>
+          <option>Bu</option>
+          <option>4C</option>
+        </select>
+      </label>
+      <label><input id="raw" type="checkbox" /> acceptRaw</label>
+      <button id="start" type="button">Start</button>
+      <button id="stop" type="button">Stop</button>
+    </p>
+    <p id="status">idle</p>
+    <p id="result"></p>
+    <video id="video" muted playsinline></video>
+    <script type="module" src="/src/receive.ts"></script>
+  </body>
+</html>

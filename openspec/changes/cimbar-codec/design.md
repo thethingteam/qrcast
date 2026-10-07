@@ -73,13 +73,16 @@ packages/qrcast/
     index.ts                core (unchanged exports, plus new types)
     sender/index.ts         createSender
     receiver/index.ts       createReceiver
-    internal/               emitter, codec driver types, env probes, options
+    states.ts               SenderState, ReceiverState
+    internal/               emitter, codec driver types, env probes
     codecs/cimbar/
       index.ts              cimbar(): validated descriptor, no assets
-      runtime.ts            dynamic-import target: asset URLs, worker protocol
-      sender-driver.ts      encoder worker client
-      receiver-driver.ts    extract worker pool + assembler worker client
+      options.ts            option validation, mode numbers
+      runtime.ts            asset URLs, worker start and protocol
+      sender-driver.ts      encoder worker client (dynamic-import target)
+      receiver-driver.ts    extract pool + assembler (dynamic-import target)
       cimbar-worker.js      hand-written classic worker (checked with checkJs)
+      worker-globals.d.ts   the worker's globals, for tsconfig.worker.json
   scripts/copy-assets.mjs   copies vendor/cimbar/* and cimbar-worker.js
                             to dist/codecs/cimbar/
 ```
@@ -88,23 +91,25 @@ The `exports` map gets `./sender`, `./receiver` and `./cimbar` next to `.`.
 The worker is plain JavaScript because it must stay a classic script. `tsc`
 emits files of a `type: module` package as modules, so a TypeScript worker
 would need a second build. `checkJs` with a small `.d.ts` for the cimbar
-`Module` still type-checks it.
+`Module` still type-checks it, under its own `tsconfig.worker.json` (the
+WebWorker lib), which `pnpm typecheck` runs.
 
 ### Internal codec drivers
 
 `cimbar()` returns a frozen object with the public descriptor fields (`name`,
 `maxPayloadSize`, `compress`) plus the internal factories for each role,
-keyed by a module-private symbol. Those factories dynamically import
-`runtime.ts`. `createSender` and `createReceiver` reject anything without
+keyed by a module-private symbol. Those factories dynamically import the
+driver modules, which import `runtime.ts`, so the asset references load only
+with a transfer. `createSender` and `createReceiver` reject anything without
 that symbol with `invalid-input` (reason `option`).
 
 The drivers:
 
-- Sender: `load()`, `encode(envelope)`, `nextFrame(): ImageBitmap` and
-  `dispose()`.
-- Receiver: `load()`, `push(frame)`, and the callbacks `onData` (the first
-  decoded bytes; used for locking), `onProgress`, `onFile(bytes, name)` and
-  `onFailure`, plus `dispose()`.
+- Sender: `start(envelope)` (load and encode), `nextFrame(): ImageBitmap`,
+  `fps` and `dispose()`, with an `onFailure` callback.
+- Receiver: `load()`, `canAccept()`, `push(frame)`, and the callbacks
+  `onData` (the first decoded bytes; used for locking), `onProgress`,
+  `onFile(bytes, name)` and `onFailure`, plus `dispose()`.
 
 The core owns states, events, the size check, detection, unwrapping and
 `acceptRaw`. `qr-codec` will add drivers and touch nothing else.
@@ -153,13 +158,16 @@ compared with the release directly.
 The encoder worker owns an `OffscreenCanvas`:
 
 - GLFW is pointed at it through `Module.canvas`.
-- Minimal `window` and `document` stand-ins absorb GLFW's listener
-  registrations.
-- An empty `style` object absorbs canvas size writes.
+- Three stand-ins, the same as the official `send-worker` uses:
+  `self.window = self`, a `matchMedia` that returns an inert query, and a
+  `document` object with no-op listener methods. The glue aborts without
+  any one of them.
 
 For each frame the worker calls `cimbare_render` and `cimbare_next_frame`,
 then `transferToImageBitmap()`, and posts the bitmap (transferred, not
-copied).
+copied). `cimbare_render` draws the frame that the previous
+`cimbare_next_frame` prepared, so the worker calls `cimbare_next_frame`
+once after encoding; otherwise the first bitmap is blank.
 
 The main thread draws into the app's canvas through a `bitmaprenderer`
 context:
@@ -174,14 +182,12 @@ transferred only once per canvas, and every transfer needs a new worker.
 With bitmaps the app's canvas stays the same element for the sender's whole
 life.
 
-This path was never run. It is the first task (a spike). If GLFW cannot run
-in a worker even with stand-ins, implementation stops and the owner decides
-between:
-
-- the main-thread glue (single instance, a keyboard guard), or
-- building libcimbar from source.
-
-Both reopen design notes 5.1.
+The spike (task 1) confirmed this path in headless Chromium with
+SwiftShader WebGL: GLFW creates a 1040 × 1040 window on the
+`OffscreenCanvas` in mode B, the bitmaps are distinct cimbar frames, and a
+200 KB body decodes back byte for byte (27 frames) through separate extract
+and assemble instances. The official release also ships a `send-worker`
+that renders the encoder in a worker, so this is a path upstream supports.
 
 ### Frame pacing
 
@@ -300,7 +306,10 @@ does not break the loop.
   - the abort path, through a `workerFactory` that returns a fixture worker
     which aborts, and
   - typing while playing.
-- `pnpm test` runs both suites.
+- `pnpm test` runs the type checks and the Node suite; `pnpm test:browser`
+  runs the browser suite, which needs a Chromium download. The browser tests
+  run the codec from `src/`, with a Vite middleware that serves the vendored
+  files where `runtime.ts` expects them.
 - Compatibility with the official cimbar web sender and receiver, and real
   phones, are checked by hand with `apps/demo`.
 
@@ -319,15 +328,26 @@ does not break the loop.
   `qrcast`, and uses `@vitejs/plugin-basic-ssl` so phones can open it over
   the LAN.
 
+### Compatibility and device checks (task 9.2)
+
+- **Phone receiving a desktop transfer (mode B), with the demo:** passed,
+  checked by the owner. Speed, device and browser were not recorded.
+- **Official cimbar web sender (cimbar.org) to the qrcast receiver with
+  `acceptRaw`:** passed, checked by the owner; the file arrived as `raw`.
+- **qrcast sender to the official libcimbar v0.6.8 web receiver:** passed,
+  checked automatically. Frames recorded from the demo send page (a 30 KB
+  seeded random body, mode B) were fed as a fake camera to the release's own
+  `recv.html` in headless Chromium. It saved `qrcast.bin` (30803 bytes):
+  the envelope, starting with `QRCAST`, version 1, flags 0, with the body
+  intact.
+
 ## Risks / Trade-offs
 
-- [GLFW cannot run in a worker] → The spike runs first; on failure,
-  implementation stops for an owner decision (see above).
 - [Headless Chromium lacks WebGL in CI] → Launch it with SwiftShader flags
-  in the browser test config. The spike confirms it locally.
-- [`captureStream()` does not capture a `bitmaprenderer` canvas] → The
-  loopback test copies frames into a 2D canvas it captures. The library is
-  unaffected.
+  in the browser test config. The spike confirmed it locally.
+- [`captureStream()` and a `bitmaprenderer` canvas] → The spike confirmed
+  that `captureStream()` captures it (1040 × 1040 BGRA frames), so the
+  loopback tests capture the sender's canvas directly.
 - [Vite dev pre-bundling rewrites `import.meta.url`, so assets 404] →
   `optimizeDeps.exclude: ['qrcast']`, documented in the README and used by
   the demo.

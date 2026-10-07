@@ -7,5 +7,10 @@
     "sourceMap": true,
     "types": []
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ],
+  "exclude": [
+    "src/codecs/cimbar/worker-globals.d.ts"
+  ]
 }

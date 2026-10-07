@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>qrcast send</title>
+    <style>
+      canvas {
+        display: block;
+        max-width: 95vw;
+        max-height: 85vh;
+        background: #fff;
+      }
+    </style>
+  </head>
+  <body>
+    <p><a href="index.html">qrcast demo</a> / send</p>
+    <form id="form">
+      <p>
+        <label><input type="radio" name="source" value="random" checked /> Random body:</label>
+        seed <input id="seed" type="number" min="1" value="1" size="6" />
+        size (KB) <input id="size" type="number" min="1" value="200" size="6" />
+      </p>
+      <p>
+        <label><input type="radio" name="source" value="file" /> File:</label>
+        <input id="file" type="file" />
+      </p>
+      <p>
+        <label>Mode
+          <select id="mode">
+            <option>B</option>
+            <option>Bm</option>
+            <option>Bu</option>
+            <option>4C</option>
+          </select>
+        </label>
+        <label>fps <input id="fps" type="number" min="1" max="30" value="15" size="3" /></label>
+        <button type="submit">Start</button>
+        <button id="stop" type="button">Stop</button>
+      </p>
+    </form>
+    <p id="status">idle</p>
+    <canvas id="canvas"></canvas>
+    <script type="module" src="/src/send.ts"></script>
+  </body>
+</html>

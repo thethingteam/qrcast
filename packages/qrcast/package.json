@@ -3,6 +3,25 @@
   "version": "0.0.0",
   "description": "Send a Uint8Array from screen to camera with animated codes.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/thethingteam/qrcast.git",
+    "directory": "packages/qrcast"
+  },
+  "homepage": "https://github.com/thethingteam/qrcast#readme",
+  "bugs": {
+    "url": "https://github.com/thethingteam/qrcast/issues"
+  },
+  "keywords": [
+    "qr",
+    "qrcode",
+    "cimbar",
+    "air-gap",
+    "offline",
+    "data-transfer",
+    "animated-qr",
+    "webassembly"
+  ],
   "type": "module",
   "exports": {
     ".": {
@@ -30,12 +49,17 @@
     "dist"
   ],
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.build.json && node scripts/copy-assets.mjs",
-    "test": "pnpm run typecheck && vitest run",
+    "test": "pnpm run typecheck && vitest run && pnpm run check:pack",
+    "check:pack": "node scripts/check-pack.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.worker.json",
     "test:browser": "vitest run --config vitest.browser.config.ts"
   },

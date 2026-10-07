@@ -116,5 +116,5 @@ Contributions:
 
 ## License
 
-Not chosen yet. The bundled libcimbar files will keep their own MPL-2.0
-license.
+[MIT](LICENSE). The bundled libcimbar files will ship unmodified under their
+own MPL-2.0 license.

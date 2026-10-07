@@ -341,7 +341,6 @@ Proposed:
 - Optional whole-payload integrity hash in meta (for example SHA-256).
   Deferred by `core-byte-protocol`: it can be added later as a new meta key,
   because unknown keys are ignored.
-- Package license (`license` in `package.json`); settle before `publish`.
 - Whether the library exports a helper to sanitize names for downloads
   (basename only, strip control characters, cap at 200 bytes, keep the
   extension).

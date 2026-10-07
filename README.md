@@ -223,7 +223,9 @@ try {
 The codec references its files with `new URL('./file', import.meta.url)`,
 which Vite, webpack, Rollup and esbuild understand: your build copies the
 worker, the libcimbar or zxing-wasm scripts and the wasm files next to your
-own assets, and they are fetched from your origin. qrcast never contacts any other host.
+own assets, and they are fetched from your origin. qrcast never contacts any other host
+and never registers a service worker, so caching those files for offline use is
+your app's job (see below).
 
 - **Vite:** exclude qrcast from dependency pre-bundling, or the files 404 in
   development:
@@ -282,6 +284,7 @@ pnpm --filter qrcast exec playwright install chromium   # once, for the browser 
 pnpm build          # tsc and the asset copy: packages/qrcast/dist, then the demo
 pnpm test           # type checks, then the Node tests
 pnpm test:browser   # browser tests in headless Chromium (real cimbar loopback)
+pnpm smoke          # packs the package and builds it into minimal apps: no bundler, Vite, webpack
 pnpm typecheck
 pnpm --filter demo dev   # the demo app over HTTPS, reachable from phones on the LAN
 ```
@@ -293,6 +296,51 @@ density for the screen (QR block size, cimbar mode) and shows the payload's
 size and short SHA-256. The receive page shows the same, says whether a known
 example arrived intact, and previews it. The demo depends on the built
 package, so run `pnpm build` first. Its tests run with `pnpm --filter demo test`.
+
+`pnpm smoke` installs the packed tarball (not the workspace sources) into three
+minimal apps under `smoke/`, builds them, checks that the wasm and worker files
+are emitted, and loads each in headless Chromium, failing on any request that
+leaves the page's origin. Run `pnpm build` first. It needs network access to
+install Vite and webpack.
+
+## Releasing
+
+For maintainers. Releases are built from Conventional Commits (`feat:` and
+`fix:`): release-please keeps a release PR open with the next version and the
+changelog, and merging that PR tags `vX.Y.Z` and publishes `qrcast` to npm from
+GitHub Actions with provenance. There is no npm token. Before 1.0, a breaking
+change bumps the minor version. Check the release PR's diff before you merge
+it, because merging publishes.
+
+One-time setup, in this order:
+
+1. In the repository's Settings, Actions, General, turn on "Allow GitHub
+   Actions to create and approve pull requests". release-please needs it to
+   open the release PR.
+2. Claim the name by publishing the current `0.0.0` by hand. This version has
+   no provenance, and the first real release (`0.1.0`) comes from CI:
+
+   ```sh
+   pnpm install
+   pnpm build && pnpm test
+   cd packages/qrcast
+   npm login
+   npm publish --access public --provenance=false
+   ```
+
+3. On npmjs.com, open the `qrcast` package, then Settings, Trusted Publisher,
+   and add a GitHub Actions publisher: your GitHub user or organization, the
+   repository `qrcast`, and the workflow file name `release.yml`. npm only
+   allows this once the package exists.
+
+Check the current npm behavior when you do this: if npm can attach a trusted
+publisher to a package that does not exist yet, step 2 is not needed.
+
+To roll back a bad release, deprecate it and ship a fixed patch release:
+
+```sh
+npm deprecate qrcast@X.Y.Z "Broken, use X.Y.Z+1"
+```
 
 For reliable reading, make the code as large as the sender's screen allows
 (the demo has a full-screen button) and hold the camera so the code fills much

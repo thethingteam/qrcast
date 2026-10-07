@@ -249,6 +249,20 @@ Why a CRC mismatch resets the session instead of failing:
 - Failing would need a new error code and gives the app nothing to do
   except restart.
 
+Why the repair generator is mulberry32:
+
+- It must be non-linear over GF(2). A pure shift-and-XOR generator (such as
+  xorshift) spans at most 32 dimensions, so repair frames built from it can
+  never finish a transfer. mulberry32's integer multiplications break that
+  linearity.
+
+Why detection is positive (the first success), not a timeout warning:
+
+- "Nothing decodes" alone cannot tell a codec mismatch from bad lighting or
+  distance.
+- cimbar pictures are colorful, so while detecting, the QR decoder tries (and
+  fails) on them. This is harmless and stops after locking.
+
 Unknown frame versions or modes (`QRCAST2F`, `QRCAST1X`) are ignored like
 any other QR code. Failing on them would let one stray code end a
 transfer. A newer sender is still noticed: the receiver never locks.
@@ -355,6 +369,16 @@ white and in color, and a desktop receives from a phone.
 
 Additive and pre-1.0. Existing cimbar users see no change, apart from the
 internal move of the worker helper.
+
+## Manual check results
+
+Checked with `apps/demo` on 2026-10-07 (task 8.3):
+
+- A phone receiving from the desktop works in all three modes: QR black and
+  white, QR color (`layers: 3`) and cimbar.
+- Not measured yet: transfer speed, and the exact phone model and browser.
+- Not tested yet: a desktop receiving from a phone. The owner will check it,
+  and record speeds, after the demo and its interface are reworked.
 
 ## Open Questions
 

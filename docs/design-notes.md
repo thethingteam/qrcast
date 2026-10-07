@@ -76,8 +76,8 @@ The sender chooses the codec. The receiver detects it (section 6).
 | Codec | Measured speed (prototype, real phone) | Needs | When to use |
 |---|---|---|---|
 | `cimbar` (default) | ~92 KB/s (mode B) | WebGL, wasm | normal use |
-| `qr`, `layers: 3` (color) | ~31 KB/s | Canvas 2D | cimbar unavailable |
-| `qr`, `layers: 1` (black and white) | ~12.5 KB/s | Canvas 2D | poor light or color, most robust |
+| `qr`, `layers: 3` (color) | ~31 KB/s | nothing special to send | cimbar unavailable |
+| `qr`, `layers: 1` (black and white) | ~12.5 KB/s | nothing special to send | poor light or color, most robust |
 
 The QR ceiling is capacity per frame x frames per second (about 800 B x 15 fps
 = 11.7 KB/s for black and white, x 3 for color). A headless loopback test
@@ -104,85 +104,19 @@ Reference numbers kept for later changes:
 
 ### 5.2 QR codec (Decided)
 
-Frame text, entirely in the QR alphanumeric character set
-(`0-9 A-Z space $ % * + - . / :`):
-
-```
- QRCAST1F/<SESSION>/<INDEX>/<TOTAL>/<LENGTH>/<CRC32>/<PAYLOAD>
- ^^^^^^^^
- |     ||
- |     |+-- mode    : F = fountain (the only mode in v1; other letters reserved)
- |     +--- version : 1 (one base36 character)
- +--------- family  : QRCAST
-```
-
-- The first 8 characters are parsed by position. A receiver can tell a qrcast
-  frame from any other QR code (a URL in the camera view, for example) by
-  looking at the first 6 characters. Someone who scans a single frame with a
-  phone camera sees `QRCAST...` and can search for it.
-- `SESSION`: 6 characters `[0-9A-Z]`, random per transfer.
-- `INDEX`, `TOTAL`, `LENGTH`: uppercase base36, 1-8 characters.
-  `TOTAL` = number of source blocks, `LENGTH` = byte length of the data that is
-  fountain-coded (the last block is zero-padded and truncated by `LENGTH`).
-- `CRC32`: CRC-32 of the whole fountain-coded data, 8 uppercase hex digits.
-- `PAYLOAD`: Base45 of exactly one block. The Base45 alphabet contains `/`, so
-  the fields are split at the **first six** `/` only.
-- Block size and maximum block count are codec parameters, not protocol
-  constants. The prototype used 800 B blocks and at most 5000 blocks (about
-  3.8 MB after compression), because fountain decoding cost grows roughly with
-  the square of the block count and 5000 still decodes smoothly on a phone.
-
-Fountain code (systematic):
-
-- Frames with `INDEX < TOTAL` carry source blocks. Frames with
-  `INDEX >= TOTAL` are repair frames. The schedule inserts one repair frame
-  after every 4 source frames; repair indexes keep increasing across passes
-  and never repeat.
-- A repair frame is the XOR of a subset of source blocks. The subset comes
-  from a seed: CRC-32 of the ASCII text `<SESSION>/<INDEX in uppercase
-  base36>`, fed to **mulberry32**; block `j` is included when the top bit of
-  the `j`-th output is set. If no block is included, include `seed mod TOTAL`.
-- The generator MUST be non-linear over GF(2). A pure shift/XOR generator
-  (such as xorshift) spans at most 32 dimensions, and decoding never finishes.
-
-Color (`layers: 3`):
-
-- Three QR codes of the same version and size are placed in the R, G and B
-  channels. A dark module sets that channel to 0, otherwise to the maximum,
-  so all-dark is black, all-light is white, and the rest are 6 pure colors.
-  Keep a white quiet zone of at least 4 modules.
-- Frames go into the layers in schedule order, three per picture
-  (R, G, B = frames 3k, 3k+1, 3k+2). When a pass is not a multiple of 3, the
-  last picture continues with frames from the next pass, so no layer is empty.
-- The frame text is identical to black and white; color is only a rendering
-  option and needs no new mode letter.
+Moved to `openspec/specs/qr-frame-protocol/` (frame text, fountain code and
+color layers) and `openspec/specs/qr-codec/` (descriptor, options, sending,
+receiving and limits), with the rationale in the archived `qr-codec` change
+(`openspec/changes/archive/`): the vendored Nayuki encoder, the block and
+frame limits, sessions, and the shared worker helper.
 
 ## 6. Receiver codec detection (Decided)
 
-The receiver does not ask which codec is used.
-
-```
-          +------------------+
- start -->|      DETECT      |  alternate frames: cimbar decoder / QR decoder
-          +--------+---------+  (both decoders preloaded)
-                   |
-     first successful decode
-          +--------+---------+
-          v                  v
-   +-------------+    +-------------+
-   | LOCK cimbar |    |  LOCK qr    |  only the locked decoder keeps running
-   +-------------+    +-------------+
-```
-
-- In QR mode, color versus black and white is decided per capture from the
-  saturation of the central region: below the threshold, decode once in
-  grayscale; above it, decode the R, G and B channels separately. A failure in
-  one channel must not affect the others.
-- cimbar pictures are colorful, so during DETECT the QR decoder will try (and
-  fail) on them. This is harmless and stops after locking.
-- "Nothing decodes" alone cannot tell a codec mismatch from bad lighting or
-  distance, which is why detection is positive (first success), not a
-  timeout warning.
+Moved to the `receiver` spec (Codec detection) and the `qr-codec` spec (Color
+detection per capture, Locking on the first frame), with the rationale in the
+archived `cimbar-codec` and `qr-codec` changes (`openspec/changes/archive/`).
+The receiver does not ask which codec is used: the first codec that decodes a
+frame wins.
 
 ## 7. Size limits and segmentation (Decided for v1)
 
@@ -208,7 +142,6 @@ The receiver does not ask which codec is used.
 
 - Receiving plain cimbar files (`acceptRaw`) moved to the `receiver` and
   `cimbar-codec` specs.
-- QR frames that do not start with `QRCAST` are always ignored.
 - Sending raw files (no envelope) to official cimbar receivers: after v1.
 
 ## 9. Errors
@@ -241,21 +174,20 @@ build output:
 - For cimbar this is implemented: see the `codec-contract` and
   `cimbar-codec` specs, the archived `cimbar-codec` design (worker loading,
   asset URLs), and the README (Vite `optimizeDeps.exclude`, PWA caching,
-  CSP). The QR codec follows the same pattern for zxing (`locateFile`, asset
-  URL overrides, `receiver.preload()`).
+  CSP). The QR codec follows the same pattern for zxing: see the `qr-codec`
+  spec and the archived `qr-codec` design.
 - Without a bundler (`<script type="module">`), `import.meta.url` points at
   the package itself, so the relative asset URLs still resolve. From an ESM
   CDN on another origin, workers cannot start (`codec-init-failed`); the
   `publish` change adds smoke tests for webpack and no bundler.
 
-Asset sizes: `cimbar_js.wasm` 1.94 MB (607 KB gzip), `cimbar_js.js` 85 KB,
-`zxing_reader.wasm` 954 KB.
+Asset sizes: `cimbar_js.wasm` 1.94 MB (607 KB gzip), `cimbar_js.js` 85 KB.
 
 ## 11. Package layout (Decided)
 
 - Subpath exports: `.` (core types and `QrcastError`, runs in Node),
-  `./sender`, `./receiver` and `./cimbar` (from `cimbar-codec`); the QR codec
-  will add `./qr`.
+  `./sender`, `./receiver`, `./cimbar` (from `cimbar-codec`) and `./qr` (from
+  `qr-codec`).
 - `sideEffects: false`.
 - Published `dist/`:
 
@@ -266,7 +198,9 @@ Asset sizes: `cimbar_js.wasm` 1.94 MB (607 KB gzip), `cimbar_js.js` 85 KB,
    receiver/index.js
    codecs/cimbar/          index.js, cimbar-worker.js, cimbar_js.<stamp>.js,
                            cimbar_js.<stamp>.wasm, LICENSE (MPL-2.0)
-   codecs/qr/              index.js, qr-worker.js, zxing_reader.wasm (planned)
+   codecs/qr/              index.js, qr-worker.js, zxing_reader.js,
+                           zxing_reader.wasm, LICENSE (MIT),
+                           LICENSE.zxing-cpp (Apache-2.0)
 ```
 
 ## 12. Repository, tooling and release
@@ -330,8 +264,8 @@ Proposed:
    interface, error types.
 2. `cimbar-codec` (done, archived): sender, receiver and the cimbar codec
    (single segment), plus `apps/demo` and the browser tests.
-3. `qr-codec`: port the existing black-and-white and color implementation
-   as-is; performance work (worker pool, two-stage decode, 1080p) later.
+3. `qr-codec` (done): the black-and-white and color QR codec, ported from the
+   prototype; performance work (worker pool, two-stage decode, 1080p) later.
 4. `publish`: release-please, trusted publishing, consumer smoke tests.
 
 ## 16. Rejected names and prefixes
@@ -356,8 +290,8 @@ Proposed:
   handoff, not an importable library. Its QR and cimbar paths are separate
   (no shared envelope), it loads cimbar relative to the page URL, and it does
   not segment. It uses wirehair-wasm for its QR fountain code. Wirehair
-  decodes in roughly linear time, while the dense random code in section 5.2
-  costs roughly quadratic time, so it could lift the block-count cap. Worth
-  considering for the QR codec later.
+  decodes in roughly linear time, while the dense random code in the
+  `qr-frame-protocol` spec costs roughly quadratic time (see the `qr-codec` design), so it could lift
+  the block-count cap. Worth considering for the QR codec later.
 - Blockchain Commons UR (`UR:BYTES/...`): precedent for human-readable
   prefixes on animated QR frames.

@@ -71,6 +71,14 @@ every later frame only to that codec and release the other decoders.
 - **WHEN** a receiver has codecs A and B and the first frame that either decodes is decoded by B
 - **THEN** it locks to B and codec A receives no further frames
 
+#### Scenario: cimbar and QR, QR sender
+- **WHEN** a receiver created with `[cimbar(), qr()]` films a QR sender
+- **THEN** it emits `lock` with codec `qr` and `start` resolves with the sent body
+
+#### Scenario: cimbar and QR, cimbar sender
+- **WHEN** a receiver created with `[cimbar(), qr()]` films a cimbar sender
+- **THEN** it emits `lock` with codec `cimbar` and `start` resolves with the sent body
+
 ### Requirement: Progress events
 While receiving, the receiver SHALL emit `progress` events carrying the
 locked codec's name and the fraction of the file received so far, a number

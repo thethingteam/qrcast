@@ -56,8 +56,8 @@ limits.
 
 ## 3. Envelope
 
-Moved to the `core-byte-protocol` change: the `envelope` spec and its
-`design.md`.
+Moved to `openspec/specs/envelope/`, with the rationale in the archived
+`core-byte-protocol` change (`openspec/changes/archive/`).
 
 ## 4. Compression (Decided)
 
@@ -352,7 +352,8 @@ Proposed:
 
 ## 15. Planned changes
 
-1. `core-byte-protocol`: envelope, size check, codec interface, error types.
+1. `core-byte-protocol` (done, archived): envelope, size check, codec
+   interface, error types.
 2. `cimbar-codec`: sender and receiver (single segment).
 3. `qr-codec`: port the existing black-and-white and color implementation
    as-is; performance work (worker pool, two-stage decode, 1080p) later.

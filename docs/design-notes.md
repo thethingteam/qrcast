@@ -86,32 +86,21 @@ about 6-7.5 KB per frame, which explains the gap.
 
 ### 5.1 cimbar codec (Decided)
 
-- Use the official libcimbar wasm release **v0.6.8** (MPL-2.0) as-is, loaded
-  in a **classic worker** (it is an emscripten classic script: `importScripts`
-  and a global `Module`). Building libcimbar from source (to get an ES module
-  build and memory growth) is deferred.
-- MPL-2.0 is file-level copyleft: qrcast can use its own license as long as
-  the cimbar files ship unmodified with their license notice.
-- Modes: B = 68 (default), Bm = 67, Bu = 66, 4C = 4. Per-frame capacity:
-  B 7500 B, Bm 5148 B, Bu 3240 B, 4C 7500 B.
-- Limits:
-  - Protocol: the file size is stored in 25 bits (32 MiB) and wirehair allows
-    at most 64000 blocks, so about 32 MiB for B, Bu and 4C, and about
-    25.8 MiB for Bm (after cimbar's zstd). Above that the encoder does not
-    fail; it produces wrong metadata.
-  - Memory, which is the real limit: the wasm heap is fixed at 128 MB. A fresh
-    instance encodes at most about 23.5 MB of random data; 24 MB runs out of
-    memory. After encoding other sizes the heap fragments and even 20 MB can
-    fail. Limits on phones have not been measured.
-  - Therefore `maxPayloadSize` starts at a conservative **16 MB**, and each
-    transfer should use a fresh wasm instance (or worker).
-- An emscripten abort leaves the instance unusable and throws synchronously.
-  The codec reports `codec-aborted` (with the data size or receive progress at
-  the time), refuses further calls on that instance, and tells the caller to
-  create a new one.
-- cimbar's file name field (up to 500 bytes) may carry `meta.n` for
-  convenience, but qrcast reads its own envelope and never relies on that
-  field.
+Moved to `openspec/specs/cimbar-codec/` (with `sender` and `receiver`), with
+the rationale in the archived `cimbar-codec` change (`openspec/changes/archive/`):
+the unmodified libcimbar v0.6.8 wasm release (MPL-2.0) in classic workers, a
+fresh instance per transfer, and the 16 MiB limit with its memory
+measurements.
+
+Reference numbers kept for later changes:
+
+- Per-frame capacity: B 7500 B, Bm 5148 B, Bu 3240 B, 4C 7500 B.
+- Protocol limits: the file size is stored in 25 bits (32 MiB) and wirehair
+  allows at most 64000 blocks, so about 32 MiB for B, Bu and 4C, and about
+  25.8 MiB for Bm (after cimbar's zstd). Above that the encoder does not
+  fail; it produces wrong metadata. The fixed 128 MB heap binds first.
+- Building libcimbar from source (an ES module build, memory growth) is
+  still deferred.
 
 ### 5.2 QR codec (Decided)
 
@@ -217,25 +206,15 @@ The receiver does not ask which codec is used.
 
 ## 8. Interop with plain cimbar (Decided)
 
-- Receiving: with an opt-in option (working name `acceptRaw`), a cimbar file
-  that does not start with `"QRCAST"` is returned as
-  `{ kind: 'raw', name: <cimbar file name>, bytes }`. By default it is an
-  `unsupported-format` error, so apps only ever see qrcast payloads unless
-  they ask otherwise. Normal results are `{ kind: 'qrcast', meta, bytes }`.
+- Receiving plain cimbar files (`acceptRaw`) moved to the `receiver` and
+  `cimbar-codec` specs.
 - QR frames that do not start with `QRCAST` are always ignored.
 - Sending raw files (no envelope) to official cimbar receivers: after v1.
 
 ## 9. Errors
 
-The error type and the codes `payload-too-large`, `unsupported-format`,
-`malformed-envelope` and `invalid-input` moved to the `error-model` spec
-(`core-byte-protocol`). Codes still to be specified by the codec changes (the
-full list is open):
-
-| Code | When |
-|---|---|
-| `decoder-init-failed` | wasm or worker failed to load or start |
-| `codec-aborted` | emscripten abort; instance unusable; includes size or progress |
+All error codes so far are in the `error-model` spec. The QR codec reuses
+them; new codes need a spec change.
 
 ## 10. Packaging and offline (Decided)
 
@@ -259,39 +238,36 @@ build output:
 - ESM only, no CommonJS.
 - cimbar is loaded with a dynamic import only when the `cimbar` codec is used,
   so QR-only users never download its 1.94 MB wasm.
-- Escape hatches for unusual setups: `wasmUrl` option, `workerFactory` option
-  (no `blob:` workers), `preloadDecoder()`.
-- Without a bundler (`<script type="module">`, or an ESM CDN), `import.meta.url`
-  points at the package itself, so the relative asset URLs still resolve.
-- The README needs an "Offline / PWA" section. For vite-plugin-pwa:
-  add `wasm` to `workbox.globPatterns` (it is not included by default) and
-  raise `maximumFileSizeToCacheInBytes` (default 2 MiB; the cimbar wasm is
-  1.94 MB).
-- The README must state that CSP needs `'wasm-unsafe-eval'`.
+- For cimbar this is implemented: see the `codec-contract` and
+  `cimbar-codec` specs, the archived `cimbar-codec` design (worker loading,
+  asset URLs), and the README (Vite `optimizeDeps.exclude`, PWA caching,
+  CSP). The QR codec follows the same pattern for zxing (`locateFile`, asset
+  URL overrides, `receiver.preload()`).
+- Without a bundler (`<script type="module">`), `import.meta.url` points at
+  the package itself, so the relative asset URLs still resolve. From an ESM
+  CDN on another origin, workers cannot start (`codec-init-failed`); the
+  `publish` change adds smoke tests for webpack and no bundler.
 
 Asset sizes: `cimbar_js.wasm` 1.94 MB (607 KB gzip), `cimbar_js.js` 85 KB,
 `zxing_reader.wasm` 954 KB.
 
-## 11. Package layout (Proposed)
+## 11. Package layout (Decided)
 
-- Subpath exports: core (pure TypeScript, runs in Node) at the package root,
-  plus browser entry points for the sender, the receiver and each codec. The
-  exact export map is open.
+- Subpath exports: `.` (core types and `QrcastError`, runs in Node),
+  `./sender`, `./receiver` and `./cimbar` (from `cimbar-codec`); the QR codec
+  will add `./qr`.
 - `sideEffects: false`.
-- Sketch of the published `dist/`:
+- Published `dist/`:
 
 ```
  dist/
    index.js                core: envelope, size check, types
    sender/index.js
    receiver/index.js
-   codecs/cimbar/          index.js, cimbar-worker.js, cimbar_js.js,
-                           cimbar_js.wasm, LICENSE (MPL-2.0)
-   codecs/qr/              index.js, qr-worker.js, zxing_reader.wasm
+   codecs/cimbar/          index.js, cimbar-worker.js, cimbar_js.<stamp>.js,
+                           cimbar_js.<stamp>.wasm, LICENSE (MPL-2.0)
+   codecs/qr/              index.js, qr-worker.js, zxing_reader.wasm (planned)
 ```
-
-- Illustrative API only: `createSender({ codec: cimbar() })`,
-  `createSender({ codec: qr({ layers: 3 }) })`.
 
 ## 12. Repository, tooling and release
 
@@ -337,7 +313,6 @@ Proposed:
 ## 14. Open questions
 
 - Confirm the change order (section 15).
-- Exact subpath export map and public API names (including `acceptRaw`).
 - Optional whole-payload integrity hash in meta (for example SHA-256).
   Deferred by `core-byte-protocol`: it can be added later as a new meta key,
   because unknown keys are ignored.
@@ -353,7 +328,8 @@ Proposed:
 
 1. `core-byte-protocol` (done, archived): envelope, size check, codec
    interface, error types.
-2. `cimbar-codec`: sender and receiver (single segment).
+2. `cimbar-codec` (done, archived): sender, receiver and the cimbar codec
+   (single segment), plus `apps/demo` and the browser tests.
 3. `qr-codec`: port the existing black-and-white and color implementation
    as-is; performance work (worker pool, two-stage decode, 1080p) later.
 4. `publish`: release-please, trusted publishing, consumer smoke tests.

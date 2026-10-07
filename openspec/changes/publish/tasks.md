@@ -15,7 +15,7 @@
 
 ## 3. CI
 
-- [ ] 3.1 Add `.github/workflows/ci.yml` (pnpm, Node 22): typecheck, `pnpm test`, `pnpm test:browser`, `pnpm build`, `pnpm smoke`, with pnpm and Playwright caches; verify it is green on a test branch pull request
+- [x] 3.1 Add `.github/workflows/ci.yml` (pnpm, Node 22): typecheck, `pnpm test`, `pnpm test:browser`, `pnpm build`, `pnpm smoke`, with pnpm and Playwright caches; verify it is green on a test branch pull request
 
 ## 4. Release automation
 

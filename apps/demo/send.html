@@ -4,60 +4,88 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>qrcast send</title>
-    <style>
-      canvas {
-        display: block;
-        max-width: 95vw;
-        max-height: 85vh;
-        background: #fff;
-      }
-    </style>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <p><a href="index.html">qrcast demo</a> / send</p>
-    <form id="form">
-      <p>
-        <label><input type="radio" name="source" value="random" checked /> Random body:</label>
-        seed <input id="seed" type="number" min="1" value="1" size="6" />
-        size (KB) <input id="size" type="number" min="1" value="200" size="6" />
-      </p>
-      <p>
-        <label><input type="radio" name="source" value="file" /> File:</label>
-        <input id="file" type="file" />
-      </p>
-      <p>
-        <label>Codec
-          <select id="codec">
-            <option value="cimbar">cimbar</option>
-            <option value="qr">QR</option>
-          </select>
-        </label>
-        <span id="cimbar-options">
-          <label>Mode
+    <main class="page">
+      <p class="crumbs"><a href="index.html">qrcast demo</a> / send</p>
+      <h1 id="title">Send</h1>
+
+      <section class="card">
+        <dl class="facts">
+          <dt>Name</dt><dd id="fact-name" class="mono">–</dd>
+          <dt>Size</dt><dd id="fact-size">–</dd>
+          <dt>SHA-256</dt><dd id="fact-hash" class="mono">–</dd>
+        </dl>
+        <div id="random-options" class="row" hidden>
+          <div class="field"><label for="seed">Seed</label><input id="seed" type="number" min="1" value="1" inputmode="numeric" /></div>
+          <div class="field"><label for="size">Size (KB)</label><input id="size" type="number" min="1" max="4000" value="200" inputmode="numeric" /></div>
+        </div>
+        <div id="file-options" class="row" hidden>
+          <div class="field"><label for="file">File</label><input id="file" type="file" /></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="row">
+          <div class="segmented" role="radiogroup" aria-label="Codec">
+            <label><input type="radio" name="codec" value="cimbar" checked />cimbar</label>
+            <label><input type="radio" name="codec" value="qr" />QR</label>
+          </div>
+          <button id="preset" type="button">Small screen preset</button>
+        </div>
+
+        <div id="cimbar-options" class="row">
+          <div class="field">
+            <label for="mode">Density</label>
             <select id="mode">
-              <option>B</option>
-              <option>Bm</option>
-              <option>Bu</option>
-              <option>4C</option>
+              <option value="B">Standard (B)</option>
+              <option value="Bm">Wide picture (Bm), same density</option>
+              <option value="Bu">Large cells (Bu), about 1.4× larger</option>
+              <option value="4C">4 colors (4C)</option>
             </select>
-          </label>
-        </span>
-        <span id="qr-options" hidden>
-          <label>Layers
-            <select id="layers">
-              <option value="1">1 (black and white)</option>
-              <option value="3">3 (color)</option>
-            </select>
-          </label>
-          <label>Block size <input id="block-size" type="number" min="100" max="2000" value="800" size="5" /></label>
-        </span>
-        <label>fps <input id="fps" type="number" min="1" max="30" value="15" size="3" /></label>
-        <button type="submit">Start</button>
-        <button id="stop" type="button">Stop</button>
-      </p>
-    </form>
-    <p id="status">idle</p>
-    <canvas id="canvas"></canvas>
+          </div>
+        </div>
+        <div id="qr-options">
+          <div class="row">
+            <div class="field">
+              <label for="layers">Layers</label>
+              <select id="layers">
+                <option value="1">1 (black and white)</option>
+                <option value="3">3 (color, about 2.5× faster)</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="field">
+              <label for="block-size">Block size: <output id="block-size-value">800</output> bytes</label>
+              <input id="block-size" type="range" min="100" max="2000" step="50" value="800" />
+              <span class="muted small">Smaller blocks make a sparser code with bigger modules, but need more frames.</span>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="fps">Speed: <output id="fps-value">15</output> frames per second</label>
+            <input id="fps" type="range" min="1" max="30" step="1" value="15" />
+          </div>
+        </div>
+        <p id="estimate" class="muted small"></p>
+        <div class="row">
+          <button id="start" class="primary" type="button">Start</button>
+          <button id="stop" type="button" disabled>Stop</button>
+          <button id="fullscreen" type="button">Full screen</button>
+        </div>
+        <p><span id="state" class="pill" data-tone="idle" role="status">Idle</span></p>
+        <p id="status" class="muted small"></p>
+      </section>
+
+    </main>
+    <!-- Outside the narrow page column, so the code can grow to the screen height. -->
+    <div class="wide">
+      <div id="stage"><canvas id="canvas"></canvas></div>
+      <p id="code-info" class="muted small"></p>
+    </div>
     <script type="module" src="/src/send.ts"></script>
   </body>
 </html>

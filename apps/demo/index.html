@@ -4,13 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>qrcast demo</title>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <h1>qrcast demo</h1>
-    <p>Open the send page on one device and the receive page on another.</p>
-    <ul>
-      <li><a href="send.html">Send</a></li>
-      <li><a href="receive.html">Receive</a></li>
-    </ul>
+    <main class="page">
+      <h1>qrcast demo</h1>
+      <p class="muted">
+        Send bytes from one screen to another device's camera. Pick an example to send, then open
+        Receive on the other device. Examples have known content, so the receiver can tell you whether
+        every byte arrived.
+      </p>
+      <h2>Send</h2>
+      <div class="cards" id="examples"></div>
+      <h2>Receive</h2>
+      <div class="cards">
+        <a class="card" href="receive.html">
+          <h2>Receive</h2>
+          <p class="muted small">Point the camera at a sender. Works with any example or file.</p>
+        </a>
+      </div>
+    </main>
+    <script type="module" src="/src/index.ts"></script>
   </body>
 </html>

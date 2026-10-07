@@ -1,0 +1,5 @@
+tux.png is Tux, the Linux mascot, as published on Wikimedia Commons (File:Tux.svg, PNG rendition).
+
+Attribution: Larry Ewing (lewing@isc.tamu.edu) and The GIMP.
+Permission to use and/or modify this image is granted provided that you
+acknowledge Larry Ewing and The GIMP as the creators of the original.

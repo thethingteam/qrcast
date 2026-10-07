@@ -4,34 +4,68 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>qrcast receive</title>
-    <style>
-      video {
-        display: block;
-        max-width: 95vw;
-        max-height: 50vh;
-      }
-    </style>
+    <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
-    <p><a href="index.html">qrcast demo</a> / receive</p>
-    <p>
-      <button id="camera" type="button">Open camera</button>
-      <label>cimbar mode
-        <select id="mode">
-          <option value="">auto</option>
-          <option>B</option>
-          <option>Bm</option>
-          <option>Bu</option>
-          <option>4C</option>
-        </select>
-      </label>
-      <label><input id="raw" type="checkbox" /> acceptRaw</label>
-      <button id="start" type="button">Start</button>
-      <button id="stop" type="button">Stop</button>
-    </p>
-    <p id="status">idle</p>
-    <p id="result"></p>
-    <video id="video" muted playsinline></video>
+    <main class="page">
+      <p class="crumbs"><a href="index.html">qrcast demo</a> / receive</p>
+      <h1>Receive</h1>
+
+      <section class="card">
+        <video id="video" muted playsinline></video>
+        <p id="camera-info" class="muted small"></p>
+        <div id="camera-options" class="row" hidden>
+          <div id="lens-field" class="field" hidden>
+            <label for="lens">Camera</label>
+            <select id="lens"></select>
+          </div>
+          <div id="zoom-field" class="field" hidden>
+            <label for="zoom">Zoom: <output id="zoom-value">1</output>×</label>
+            <input id="zoom" type="range" min="1" max="1" step="0.1" value="1" />
+          </div>
+        </div>
+        <div class="row">
+          <button id="camera" type="button">Open camera</button>
+          <button id="start" class="primary" type="button">Start receiving</button>
+          <button id="stop" type="button" disabled>Stop</button>
+        </div>
+        <div class="row">
+          <div class="field">
+            <label for="mode">cimbar mode</label>
+            <select id="mode">
+              <option value="">auto</option>
+              <option>B</option>
+              <option>Bm</option>
+              <option>Bu</option>
+              <option>4C</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="raw">Raw cimbar files</label>
+            <label class="small"><input id="raw" type="checkbox" /> accept files without an envelope</label>
+          </div>
+        </div>
+        <p><span id="state" class="pill" data-tone="idle" role="status">Idle</span></p>
+        <progress id="progress" class="progress" max="100" value="0"></progress>
+        <p id="live" class="muted small"></p>
+      </section>
+
+      <section id="result" class="card" hidden>
+        <h2>Received</h2>
+        <dl class="facts">
+          <dt>Name</dt><dd id="r-name" class="mono"></dd>
+          <dt>Codec</dt><dd id="r-codec"></dd>
+          <dt>Size</dt><dd id="r-size"></dd>
+          <dt>Sent as</dt><dd id="r-wire"></dd>
+          <dt>SHA-256</dt><dd id="r-hash" class="mono"></dd>
+          <dt>Transfer speed</dt><dd id="r-speed"></dd>
+        </dl>
+        <p id="verdict" class="verdict"></p>
+        <p><a id="download">Download</a></p>
+        <div id="preview" class="preview"></div>
+      </section>
+      <p id="error" class="verdict bad" role="alert"></p>
+    </main>
     <script type="module" src="/src/receive.ts"></script>
   </body>
 </html>

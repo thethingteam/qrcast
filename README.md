@@ -286,15 +286,25 @@ pnpm typecheck
 pnpm --filter demo dev   # the demo app over HTTPS, reachable from phones on the LAN
 ```
 
-The demo (`apps/demo`) has a send page and a receive page for trying
-transfers between real devices; it depends on the built package, so run
-`pnpm build` first.
+The demo (`apps/demo`) is for trying transfers between real devices. The
+entry page offers examples with known content (text, JSON, GeoJSON, an image,
+a random body) and your own files. The send page lets you tune the code
+density for the screen (QR block size, cimbar mode) and shows the payload's
+size and short SHA-256. The receive page shows the same, says whether a known
+example arrived intact, and previews it. The demo depends on the built
+package, so run `pnpm build` first. Its tests run with `pnpm --filter demo test`.
+
+For reliable reading, make the code as large as the sender's screen allows
+(the demo has a full-screen button) and hold the camera so the code fills much
+of the picture. A code that is small in the camera frame reads slowly or not
+at all. On a small screen, pick the "Large cells" cimbar mode (Bu) or a lower
+QR block size.
 
 Repository layout:
 
 ```
 packages/qrcast/   the published library (src, test, vendor/cimbar, vendor/zxing-wasm)
-apps/demo/         unstyled demo app (private, not published)
+apps/demo/         demo app (private, not published)
 openspec/          specs and change proposals
 docs/              design notes: decisions not yet captured in specs
 ```

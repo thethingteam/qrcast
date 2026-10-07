@@ -102,6 +102,24 @@ Reference numbers kept for later changes:
 - Building libcimbar from source (an ES module build, memory growth) is
   still deferred.
 
+Field notes from phone and tablet tests of the demo:
+
+- **The code's size in the camera picture decides how fast it reads.** The
+  cells are about 8 px, so a code that is small in the camera frame gives each
+  cell too few pixels. A loopback test with mode B (frames scaled down, no
+  camera noise) took about 0.9 s at 700 px, 2.4 to 2.8 s at 520 and 400 px,
+  and never finished at 300 px. A real transfer got clearly faster once the
+  sender's code was allowed to grow from about 670 px to the screen height.
+  Nearest-neighbour or smooth scaling made no difference.
+- Only mode Bu gives larger cells at the same screen width (about 1.38×; Bm has
+  the same cell size as B in a shorter picture). A sparser cimbar than Bu would
+  need a library change.
+- Each libcimbar instance reserves a fixed 128 MB heap that does not grow. A
+  receiver starts up to three extract workers and one assemble worker, so about
+  512 MB at once. An iPad once failed to start with `RangeError: Out of memory`
+  and worked after the browser was restarted. Falling back to fewer workers
+  when an instance cannot be allocated is not designed yet.
+
 ### 5.2 QR codec (Decided)
 
 Moved to `openspec/specs/qr-frame-protocol/` (frame text, fountain code and
@@ -253,7 +271,9 @@ Proposed:
 - Whether the library exports a helper to sanitize names for downloads
   (basename only, strip control characters, cap at 200 bytes, keep the
   extension).
-- cimbar memory limits on phones.
+- cimbar memory limits on phones and tablets: whether to start workers one by
+  one and fall back to fewer when an instance cannot be allocated, and an
+  option to set the worker count (see section 5.1, field notes).
 - Reserve the `qrcast` name on npm early (also check `qr-cast`).
 - The pnpm trusted publishing flow: verify during setup. (TypeScript 7
   declaration emit was verified in `core-byte-protocol`.)

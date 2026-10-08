@@ -9,4 +9,4 @@
 ## 2. Docs and checks
 
 - [x] 2.1 In `README.md` and `packages/qrcast/README.md`, state that the QR receiver reads the code anywhere in the camera picture; verify both READMEs say the same
-- [ ] 2.2 Run `pnpm test`, `pnpm test:browser` and `pnpm build` in `packages/qrcast`, and `openspec validate qr-full-frame --strict`; verify all pass
+- [x] 2.2 Run `pnpm test`, `pnpm test:browser` and `pnpm build` in `packages/qrcast`, and `openspec validate qr-full-frame --strict`; verify all pass

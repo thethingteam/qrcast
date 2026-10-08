@@ -20,11 +20,40 @@ the bytes back. No network, no pairing, no back channel.
 - **One-way.** Works across an air gap: the receiver never talks back to the
   sender.
 
+## Install
+
+The package is published to GitHub Packages as `@thethingteam/qrcast`, and
+GitHub requires a token even to install it. Two files do the setup.
+
+In your project's `.npmrc` (committed; it holds no secret):
+
+```ini
+@thethingteam:registry=https://npm.pkg.github.com
+```
+
+In your own `~/.npmrc` (never committed), a token with the `read:packages`
+scope:
+
+```ini
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+With the GitHub CLI, grant the scope once and export the token in your shell:
+
+```sh
+gh auth refresh -s read:packages
+export NODE_AUTH_TOKEN=$(gh auth token)
+```
+
+Then `pnpm add @thethingteam/qrcast` (or `npm install`). Another repository's
+GitHub Actions can install it too, if the package's settings grant that
+repository access; use `secrets.GITHUB_TOKEN` as `NODE_AUTH_TOKEN` there.
+
 ## Sending
 
 ```ts
-import { cimbar } from 'qrcast/cimbar';
-import { createSender } from 'qrcast/sender';
+import { cimbar } from '@thethingteam/qrcast/cimbar';
+import { createSender } from '@thethingteam/qrcast/sender';
 
 const canvas = document.querySelector('canvas')!;
 const sender = createSender({ codec: cimbar(), canvas });
@@ -61,9 +90,9 @@ sender.stop();
 ## Receiving
 
 ```ts
-import { cimbar } from 'qrcast/cimbar';
-import { qr } from 'qrcast/qr';
-import { createReceiver } from 'qrcast/receiver';
+import { cimbar } from '@thethingteam/qrcast/cimbar';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createReceiver } from '@thethingteam/qrcast/receiver';
 
 const video = document.querySelector('video')!;
 video.srcObject = await navigator.mediaDevices.getUserMedia({
@@ -142,8 +171,8 @@ cimbar. It shows QR codes, and a receiver reads them with the unmodified
 [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) 3.1.4 reader.
 
 ```ts
-import { qr } from 'qrcast/qr';
-import { createSender } from 'qrcast/sender';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createSender } from '@thethingteam/qrcast/sender';
 
 const sender = createSender({ codec: qr({ layers: 3 }), canvas });
 ```
@@ -195,7 +224,7 @@ Every error the library raises is a `QrcastError` with a stable `code` and
 typed `details`:
 
 ```ts
-import { QrcastError } from 'qrcast';
+import { QrcastError } from '@thethingteam/qrcast';
 
 try {
   // ...
@@ -233,7 +262,7 @@ your app's job (see below).
   ```ts
   // vite.config.ts
   export default defineConfig({
-    optimizeDeps: { exclude: ['qrcast'] },
+    optimizeDeps: { exclude: ['@thethingteam/qrcast'] },
   });
   ```
 
@@ -280,7 +309,7 @@ Requires Node 22+ and pnpm 10.
 
 ```sh
 pnpm install
-pnpm --filter qrcast exec playwright install chromium   # once, for the browser tests
+pnpm --filter @thethingteam/qrcast exec playwright install chromium   # once, for the browser tests
 pnpm build          # tsc and the asset copy: packages/qrcast/dist, then the demo
 pnpm test           # type checks, then the Node tests
 pnpm test:browser   # browser tests in headless Chromium (real cimbar loopback)
@@ -307,40 +336,19 @@ install Vite and webpack.
 
 For maintainers. Releases are built from Conventional Commits (`feat:` and
 `fix:`): release-please keeps a release PR open with the next version and the
-changelog, and merging that PR tags `vX.Y.Z` and publishes `qrcast` to npm from
-GitHub Actions with provenance. There is no npm token. Before 1.0, a breaking
-change bumps the minor version. Check the release PR's diff before you merge
-it, because merging publishes.
+changelog, and merging that PR tags `vX.Y.Z` and publishes
+`@thethingteam/qrcast` to GitHub Packages from GitHub Actions. The workflow
+uses the built-in `GITHUB_TOKEN` with `packages: write`; there is no other
+secret. Before 1.0, a breaking change bumps the minor version. Check the
+release PR's diff before you merge it, because merging publishes.
 
-One-time setup, in this order:
+One-time setup: in the repository's Settings, Actions, General, turn on
+"Allow GitHub Actions to create and approve pull requests". release-please
+needs it to open the release PR.
 
-1. In the repository's Settings, Actions, General, turn on "Allow GitHub
-   Actions to create and approve pull requests". release-please needs it to
-   open the release PR.
-2. Claim the name by publishing the current `0.0.0` by hand. This version has
-   no provenance, and the first real release (`0.1.0`) comes from CI:
-
-   ```sh
-   pnpm install
-   pnpm build && pnpm test
-   cd packages/qrcast
-   npm login
-   npm publish --access public --provenance=false
-   ```
-
-3. On npmjs.com, open the `qrcast` package, then Settings, Trusted Publisher,
-   and add a GitHub Actions publisher: your GitHub user or organization, the
-   repository `qrcast`, and the workflow file name `release.yml`. npm only
-   allows this once the package exists.
-
-Check the current npm behavior when you do this: if npm can attach a trusted
-publisher to a package that does not exist yet, step 2 is not needed.
-
-To roll back a bad release, deprecate it and ship a fixed patch release:
-
-```sh
-npm deprecate qrcast@X.Y.Z "Broken, use X.Y.Z+1"
-```
+To roll back a bad release, delete that version in the package's settings on
+GitHub (GitHub Packages does not support `npm deprecate`) and ship a fixed
+patch release.
 
 For reliable reading, make the code as large as the sender's screen allows
 (the demo has a full-screen button) and hold the camera so the code fills much

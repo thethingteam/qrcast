@@ -33,21 +33,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # npm trusted publishing (OIDC) and the provenance attestation. There is
-      # no npm token anywhere in this workflow.
-      id-token: write
+      # Publishing to GitHub Packages uses the built-in token; there is no
+      # other secret in this workflow.
+      packages: write
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
-      # Node 24 ships an npm new enough (11.5.1 or later) for trusted publishing.
       - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
-          registry-url: https://registry.npmjs.org
+          registry-url: https://npm.pkg.github.com
+          scope: '@thethingteam'
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       # Type checks, unit tests and the packed-tarball check.
       - run: pnpm test
-      - run: npm publish --provenance --access public
+      - run: pnpm publish --no-git-checks
         working-directory: packages/qrcast
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

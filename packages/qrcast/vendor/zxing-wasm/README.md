@@ -1,6 +1,6 @@
 # zxing-wasm (vendored)
 
-The zxing-wasm reader build used by the `qrcast/qr` codec. The build copies
+The zxing-wasm reader build used by the `@thethingteam/qrcast/qr` codec. The build copies
 these files to `dist/codecs/qr/`.
 
 **Do not modify these files.** They are kept byte for byte as published on

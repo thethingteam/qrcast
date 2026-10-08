@@ -14,12 +14,14 @@ See proposal.md for motivation.
 ## Goals / Non-Goals
 
 **Goals:**
-- A first public release that installs and builds in Vite, webpack and with no
-  bundler, proven in CI against the packed tarball.
-- Releases that need no stored secret after the first one.
+- A first release, on GitHub Packages, that installs and builds in Vite,
+  webpack and with no bundler, proven in CI against the packed tarball.
+- Releases that need no stored secret: only the workflow's built-in token.
+- A package name that survives a later move to the public npm registry.
 
 **Non-Goals:**
 - Publishing the demo (GitHub Pages) or any change to library behavior.
+- Publishing to the public npm registry (a later step; see Open Questions).
 - Segmentation, raw cimbar output, worker-count options (later changes).
 - Safari and Firefox test coverage.
 
@@ -80,27 +82,38 @@ be on. *Note:* PRs opened with `GITHUB_TOKEN` do not trigger other workflows,
 so the CI checks on the release PR need a re-run trigger or a PAT; start
 without one and revisit if it blocks.
 
-**Publish with `npm publish` in a job gated on `release_created`.** The job
-needs `id-token: write`, uses Node 22 and a recent npm for trusted publishing,
-and runs `npm publish --provenance --access public` from `packages/qrcast`.
-pnpm's own trusted-publishing support was an open question in
-`design-notes.md`; calling `npm` directly avoids depending on it.
-`pnpm publish` is not used.
+**Publish to GitHub Packages with `pnpm publish --no-git-checks`, in a job
+gated on `release_created`.** The job has `contents: read` and
+`packages: write`, and `setup-node` points at `https://npm.pkg.github.com` with
+the `@thethingteam` scope; `NODE_AUTH_TOKEN` is the built-in `GITHUB_TOKEN`.
+`--no-git-checks` because the job checks out a tag. This follows the owner's
+existing GitHub Packages setup (the `release-please-setup` skill's node
+variant). *Alternative:* public npm with trusted publishing (OIDC, provenance);
+it was the first plan, and is deferred, not rejected: it needs the name claimed
+by a manual first publish and a trusted publisher attached afterwards, and
+nothing needs it yet.
 
-**First publish is manual, and only claims the name.** npm attaches a trusted
-publisher to an existing package, so the owner publishes the current `0.0.0`
-locally once (no provenance), then adds the trusted publisher (repo, workflow
-file name `release.yml`). release-please then computes `0.1.0` for the first
-release PR, and CI publishes it with provenance. Publishing `0.1.0` by hand
-would collide with that release. This is a one-time step documented in the
-README's maintainer section. *Alternative:* a short-lived granular token in a
-secret for the first run; allowed as a fallback, revoked right after.
+**The name is scoped, `@thethingteam/qrcast`, from the start.** GitHub Packages
+rejects other names. Keeping the same scoped name for npm later means no
+consumer changes an import; only the registry setting changes. The scope must
+then be owned on npmjs (`thethingteam`), which is checked when that step is
+taken. `publishConfig.registry` points at GitHub Packages so that a stray
+publish cannot reach the public registry.
+
+**Consumers configure the registry once.** The README documents a committed
+project `.npmrc` with only the scope line, and the auth line in the user's own
+`~/.npmrc`, never in the same file (when the token variable is unset, pnpm
+ignores the whole file, and the scope would fall back to the public registry).
 
 ## Risks / Trade-offs
 
-- [npm may not allow configuring a trusted publisher before the first version
-  exists] → manual first publish; verify the current npm behavior when doing
-  it and adjust the README steps.
+- [GitHub Packages needs a token even to install, and a package's visibility
+  follows its repository's] → document the `.npmrc` setup and the
+  `read:packages` scope; give other repos' Actions access in the package
+  settings.
+- [Moving to public npm later repeats work: registry in `publishConfig`, a
+  manual first publish, a trusted publisher] → the name does not change, so
+  only the maintainers' side changes; recorded under Open Questions.
 - [Release PRs created by `GITHUB_TOKEN` skip CI] → run the same checks in the
   publish job before publishing, so an unchecked release cannot ship.
 - [Smoke tests are slow and flaky if they download browsers or deps] → cache
@@ -115,13 +128,14 @@ secret for the first run; allowed as a fallback, revoked right after.
 
 1. Merge the CI, smoke-test and release-please files; the first release PR
    appears after the next `feat:` or `fix:` commit.
-2. Owner publishes `0.0.0` once by hand to claim the name, adds the trusted
-   publisher, and enables the Actions pull-request setting.
-3. Later releases: merge the release PR; the publish job does the rest.
-   Rollback of a bad release is `npm deprecate` plus a fixed patch release;
-   unpublishing is not part of the plan.
+2. Owner enables the Actions pull-request setting.
+3. Releases: merge the release PR; the publish job does the rest. Rollback of
+   a bad release is `npm deprecate` against the GitHub Packages registry plus a
+   fixed patch release; deleting a version is not part of the plan.
 
 ## Open Questions
 
 - Whether to also deploy `apps/demo` to GitHub Pages in this change or a
   later one (the proposal leaves it out).
+- When to also publish to public npm, and whether the `thethingteam` scope
+  exists there. Nothing in this change depends on the answer.

@@ -15,7 +15,7 @@ const workDir = join(smokeDir, '.work');
 
 // Pinned, so a new major version of a tool changes the tests only when we say so.
 const projects = {
-  plain: { dependencies: {}, build: null, output: '.', assets: 'node_modules/qrcast/dist' },
+  plain: { dependencies: {}, build: null, output: '.', assets: 'node_modules/@thethingteam/qrcast/dist' },
   vite: { dependencies: { vite: '8.3.3' }, build: ['npx', 'vite', 'build'], output: 'dist', assets: 'dist' },
   webpack: {
     dependencies: { webpack: '5.111.1', 'webpack-cli': '7.2.3' },
@@ -62,7 +62,7 @@ for (const name of names) {
   cpSync(join(smokeDir, 'shared/main.js'), join(dir, 'main.js'));
   writeFileSync(
     join(dir, 'package.json'),
-    JSON.stringify({ name: `smoke-${name}`, private: true, type: 'module', dependencies: { qrcast: `file:${tarball}`, ...dependencies } }, null, 2),
+    JSON.stringify({ name: `smoke-${name}`, private: true, type: 'module', dependencies: { '@thethingteam/qrcast': `file:${tarball}`, ...dependencies } }, null, 2),
   );
   run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], dir);
   const problems = [];

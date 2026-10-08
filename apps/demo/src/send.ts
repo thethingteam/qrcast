@@ -1,6 +1,6 @@
-import { cimbar, type CimbarMode } from 'qrcast/cimbar';
-import { qr } from 'qrcast/qr';
-import { createSender, type Sender } from 'qrcast/sender';
+import { cimbar, type CimbarMode } from '@thethingteam/qrcast/cimbar';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createSender, type Sender } from '@thethingteam/qrcast/sender';
 import { exampleById } from './examples.js';
 import { shortHash } from './hash.js';
 import { describeError, randomBody, randomName } from './random.js';

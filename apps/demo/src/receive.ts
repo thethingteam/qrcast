@@ -1,6 +1,6 @@
-import { cimbar, type CimbarMode } from 'qrcast/cimbar';
-import { qr } from 'qrcast/qr';
-import { createReceiver, type ReceiveResult, type Receiver } from 'qrcast/receiver';
+import { cimbar, type CimbarMode } from '@thethingteam/qrcast/cimbar';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createReceiver, type ReceiveResult, type Receiver } from '@thethingteam/qrcast/receiver';
 import { expectedBytes } from './examples.js';
 import { geojsonToSvg } from './geojson.js';
 import { shortHash } from './hash.js';

@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Published package contents
-The published `qrcast` package SHALL contain the built `dist/` files, the
+The published `@thethingteam/qrcast` package SHALL contain the built `dist/` files, the
 license files, and nothing else the exports do not need. For every subpath
 export, the JavaScript and declaration files SHALL exist. For each codec, the
 worker script, the glue script, the wasm file and the codec's license files
@@ -36,8 +36,8 @@ job; the package SHALL NOT register a service worker.
 - **THEN** the bundler detects each asset reference and emits the file
 
 ### Requirement: Consumer bundler support
-A consumer app SHALL be able to import `qrcast/sender`, `qrcast/receiver` and a
-codec, build with Vite or webpack or with no bundler, and have the codec's
+A consumer app SHALL be able to import `@thethingteam/qrcast/sender`,
+`@thethingteam/qrcast/receiver` and a codec, build with Vite or webpack or with no bundler, and have the codec's
 wasm and worker files served from the app's own origin. This SHALL be verified
 automatically against the packed tarball, not against the workspace sources.
 
@@ -53,15 +53,28 @@ automatically against the packed tarball, not against the workspace sources.
 - **WHEN** a plain `<script type="module">` page imports the installed package from a static server
 - **THEN** the relative asset URLs resolve and the page loads a codec without `codec-init-failed`
 
+### Requirement: Installable from GitHub Packages
+The package SHALL be named with the owner's scope, `@thethingteam/qrcast`, and
+its publish configuration SHALL point at the GitHub Packages registry, so that
+a publish run by mistake cannot reach the public npm registry.
+
+#### Scenario: Name and registry
+- **WHEN** the package manifest is read
+- **THEN** the name is `@thethingteam/qrcast` and `publishConfig.registry` is `https://npm.pkg.github.com`
+
+#### Scenario: Installing
+- **WHEN** a consumer sets the registry for the `@thethingteam` scope and a token with `read:packages`, and installs the package
+- **THEN** the install succeeds, and the README documents these settings
+
 ### Requirement: Automated releases
 Releases SHALL be built from Conventional Commits. A release PR SHALL carry the
 version bump and changelog, and merging it SHALL create a `vX.Y.Z` tag and
-publish that version to the public npm registry with provenance, without a
-stored npm token. Before 1.0, a breaking change SHALL bump the minor version.
+publish that version to GitHub Packages using only the workflow's built-in
+token. Before 1.0, a breaking change SHALL bump the minor version.
 
 #### Scenario: Releasing
 - **WHEN** a release PR is merged
-- **THEN** the tag exists, the same version is on npm with a provenance attestation, and the workflow used no long-lived npm secret
+- **THEN** the tag exists, the same version is listed in GitHub Packages, and the workflow used no secret other than the built-in token
 
 #### Scenario: Checks before publishing
 - **WHEN** the publish workflow starts

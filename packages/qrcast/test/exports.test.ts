@@ -5,7 +5,7 @@ import { beforeAll, expect, test } from 'vitest';
 
 const packageDir = fileURLToPath(new URL('..', import.meta.url));
 // A variable specifier keeps type checking independent of a stale dist/.
-const packageName: string = 'qrcast';
+const packageName: string = '@thethingteam/qrcast';
 
 beforeAll(() => {
   // Build so the test checks what consumers get through the exports map.
@@ -24,7 +24,7 @@ test('the built QrcastError works', async () => {
   expect(error.name).toBe('QrcastError');
 });
 
-test.each(['qrcast/sender', 'qrcast/receiver', 'qrcast/cimbar', 'qrcast/qr'])('%s imports in Node', async (specifier) => {
+test.each(['@thethingteam/qrcast/sender', '@thethingteam/qrcast/receiver', '@thethingteam/qrcast/cimbar', '@thethingteam/qrcast/qr'])('%s imports in Node', async (specifier) => {
   await expect(import(/* @vite-ignore */ specifier)).resolves.toBeTypeOf('object');
 });
 

@@ -1,9 +1,9 @@
 // The consumer app every smoke project builds. It imports each public entry
 // point, creates a receiver for both codecs and preloads them, which fetches
 // the workers, glue scripts and wasm files, then reports the outcome.
-import { createReceiver } from 'qrcast/receiver';
-import { cimbar } from 'qrcast/cimbar';
-import { qr } from 'qrcast/qr';
+import { createReceiver } from '@thethingteam/qrcast/receiver';
+import { cimbar } from '@thethingteam/qrcast/cimbar';
+import { qr } from '@thethingteam/qrcast/qr';
 
 const receiver = createReceiver({
   codecs: [cimbar(), qr()],

@@ -187,13 +187,16 @@ Decided:
 
 - Public repo, fresh history. Code, docs, OpenSpec artifacts and commit
   messages are all in English. Commits follow Conventional Commits.
-- Published on the public **npm** registry as unscoped `qrcast`. Not GitHub
-  Packages, which requires scoped names and an auth token even to install
-  public packages.
+- Published to **GitHub Packages** as `@thethingteam/qrcast`, using the
+  built-in `GITHUB_TOKEN`. The scoped name is fixed from the start, so a later
+  move to public npm (with trusted publishing) keeps the same name. The cost:
+  installing needs a `read:packages` token and a registry setting for the
+  scope. Public npm stays the goal once the API settles; it is deferred, not
+  rejected.
 - Package manager **pnpm** (workspaces), language **TypeScript** (strict),
   tests with Vitest, Node >= 22.
 - Wire format changes are breaking changes.
-- Versioning, the release PR, trusted publishing and the consumer smoke tests
+- Versioning, the release PR, publishing and the consumer smoke tests
   moved to the `package-distribution` spec and the archived `publish` change.
 
 Proposed:
@@ -222,8 +225,8 @@ Proposed:
 - cimbar memory limits on phones and tablets: whether to start workers one by
   one and fall back to fewer when an instance cannot be allocated, and an
   option to set the worker count (see section 5.1, field notes).
-- Reserve the `qrcast` name on npm early (also check `qr-cast`). The owner
-  does this by publishing the current `0.0.0`; see the README's "Releasing".
+- When to also publish to public npm, and whether the `thethingteam` scope
+  exists there (otherwise a different scope or an unscoped name is needed).
 
 ## 15. Planned changes
 
@@ -233,8 +236,8 @@ Proposed:
    (single segment), plus `apps/demo` and the browser tests.
 3. `qr-codec` (done): the black-and-white and color QR codec, ported from the
    prototype; performance work (worker pool, two-stage decode, 1080p) later.
-4. `publish` (done): release-please, trusted publishing, consumer smoke
-   tests.
+4. `publish` (done): release-please, publishing to GitHub Packages, consumer
+   smoke tests.
 
 ## 16. Rejected names and prefixes
 

@@ -28,9 +28,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm --filter qrcast exec playwright install --with-deps chromium
+      - run: pnpm --filter @thethingteam/qrcast exec playwright install --with-deps chromium
       - run: pnpm test:browser
       - run: pnpm smoke
-      # Everything a publish does except the upload; provenance needs the release job's OIDC token.
-      - run: npm publish --dry-run --access public --provenance=false
+      # Everything a publish does except the upload.
+      - run: pnpm publish --dry-run --no-git-checks
         working-directory: packages/qrcast

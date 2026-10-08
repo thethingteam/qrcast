@@ -10,7 +10,7 @@ importers:
 
   apps/demo:
     dependencies:
-      qrcast:
+      '@thethingteam/qrcast':
         specifier: workspace:*
         version: link:../../packages/qrcast
     devDependencies:

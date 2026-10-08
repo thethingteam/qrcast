@@ -26,7 +26,7 @@
 ## 5. Notes and handoff
 
 - [x] 5.1 Update `docs/design-notes.md`: remove the packaging, repository and `publish` plan items now captured in specs and this change, keeping the still-open questions; verify the file still follows its "remove when captured" rule
-- [ ] 5.2 Run `openspec validate publish` and check the owner's remaining action (the Actions setting) is listed in the README; verify the first release PR title reads `chore(main): release 0.1.0` after merging to main
+- [x] 5.2 Run `openspec validate publish` and check the owner's remaining action (the Actions setting) is listed in the README; verify the first release PR title reads `chore(main): release 0.1.0` after merging to main
 
 ## 6. Switch to GitHub Packages
 

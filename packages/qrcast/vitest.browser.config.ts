@@ -48,6 +48,9 @@ export default defineConfig({
   test: {
     include: ['test/browser/**/*.test.ts'],
     testTimeout: 60_000,
+    // One file at a time: the sender tests count frames per second, and
+    // decoding in the receiver tests of another file slows their timers.
+    fileParallelism: false,
     browser: {
       enabled: true,
       headless: true,

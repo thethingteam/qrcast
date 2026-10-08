@@ -3,6 +3,8 @@ name: Release
 on:
   push:
     branches: [main]
+  # Re-run the publish job when a release was created but the upload failed.
+  workflow_dispatch:
 
 permissions: {}
 
@@ -18,7 +20,7 @@ jobs:
       issues: write
       pull-requests: write
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}
+      releases_created: ${{ steps.release.outputs.releases_created }}
     steps:
       # Opens or updates the release PR. Merging that PR creates the tag and the
       # GitHub release. PRs opened with GITHUB_TOKEN do not trigger CI; the
@@ -29,7 +31,9 @@ jobs:
 
   publish:
     needs: release-please
-    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    # With a configured package path, release-please sets `releases_created`;
+    # the plain `release_created` output is only set for a root package.
+    if: ${{ needs.release-please.outputs.releases_created == 'true' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

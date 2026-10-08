@@ -15,18 +15,24 @@ export type WorkerReply = { type: 'decoded'; texts: string[] };
 export type QrWorker = CodecWorker<WorkerReply>;
 
 export const QrWorker = {
-  /** Starts a decode worker and waits until zxing is loaded. Rejects with `codec-init-failed`. */
-  start(options: ResolvedQrOptions): Promise<QrWorker> {
-    return CodecWorker.start<WorkerReply>({
-      codec: 'qr',
-      engine: 'zxing-wasm',
-      workerUrl: WORKER_URL,
-      workerFactory: options.workerFactory,
-      init: {
-        type: 'init',
-        glueUrl: options.glueUrl === null ? GLUE_URL.href : pageUrl(options.glueUrl),
-        wasmUrl: options.wasmUrl === null ? WASM_URL.href : pageUrl(options.wasmUrl),
+  /**
+   * Starts a decode worker and waits until zxing is loaded. Rejects with
+   * `codec-init-failed`, or with the signal's reason when `signal` aborts first.
+   */
+  start(options: ResolvedQrOptions, signal?: AbortSignal): Promise<QrWorker> {
+    return CodecWorker.start<WorkerReply>(
+      {
+        codec: 'qr',
+        engine: 'zxing-wasm',
+        workerUrl: WORKER_URL,
+        workerFactory: options.workerFactory,
+        init: {
+          type: 'init',
+          glueUrl: options.glueUrl === null ? GLUE_URL.href : pageUrl(options.glueUrl),
+          wasmUrl: options.wasmUrl === null ? WASM_URL.href : pageUrl(options.wasmUrl),
+        },
       },
-    });
+      signal,
+    );
   },
 };

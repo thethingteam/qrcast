@@ -2,7 +2,7 @@ import { QrcastError } from '../../errors.js';
 import type { ReceiverDriver, ReceiverHooks } from '../../internal/codec.js';
 import { AUTO_MODES } from './options.js';
 import type { ResolvedCimbarOptions } from './options.js';
-import { CimbarWorker, type WorkerReply } from './runtime.js';
+import { CimbarWorker, type WorkerReply, type WorkerRole } from './runtime.js';
 
 /** Frames one extract worker may hold at once; more are skipped. */
 const MAX_IN_FLIGHT = 2;
@@ -43,6 +43,8 @@ export function createCimbarReceiver(options: ResolvedCimbarOptions, hooks: Rece
   let sawData = false;
   let finished = false;
   let disposed = false;
+  /** Aborted on dispose, so a worker still waiting to start is never created. */
+  const loading = new AbortController();
 
   const workers = () => [...extractors.map(({ worker }) => worker), ...(assembler ? [assembler] : [])];
 
@@ -94,16 +96,21 @@ export function createCimbarReceiver(options: ResolvedCimbarOptions, hooks: Rece
   return {
     async load() {
       const initialMode = mode ?? AUTO_MODES[0]!;
-      const starts = Array.from({ length: extractWorkerCount() }, () =>
-        CimbarWorker.start(options, 'extract', initialMode),
-      );
-      starts.push(CimbarWorker.start(options, 'assemble', initialMode));
-      const results = await Promise.allSettled(starts);
-      const started = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
-      const failure = results.find((result) => result.status === 'rejected');
-      if (failure || disposed) {
+      const roles: WorkerRole[] = [...Array<WorkerRole>(extractWorkerCount()).fill('extract'), 'assemble'];
+      const started: CimbarWorker[] = [];
+      // One after another (workers start one at a time anyway), so that the
+      // first failure or a dispose stops creating the rest.
+      try {
+        for (const role of roles) {
+          started.push(await CimbarWorker.start(options, role, initialMode, loading.signal));
+        }
+      } catch (error) {
         for (const worker of started) worker.terminate();
-        if (failure) throw failure.reason;
+        if (disposed) return;
+        throw error;
+      }
+      if (disposed) {
+        for (const worker of started) worker.terminate();
         return;
       }
       assembler = started.pop()!;
@@ -158,6 +165,7 @@ export function createCimbarReceiver(options: ResolvedCimbarOptions, hooks: Rece
 
     dispose() {
       disposed = true;
+      loading.abort();
       stop();
     },
   };

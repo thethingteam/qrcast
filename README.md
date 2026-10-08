@@ -268,9 +268,11 @@ your app's job (see below).
   });
   ```
 
-- **Offline (PWA):** cache the emitted `.wasm` file with your other assets.
-  With `vite-plugin-pwa`, add `wasm` to the glob patterns and raise the size
-  limit, because the largest wasm is about 1.94 MB:
+- **Offline (PWA):** cache every file qrcast emits with your other assets:
+  the worker scripts, the libcimbar and zxing-wasm scripts, and the `.wasm`
+  files. Workers fetch their scripts and wasm through your service worker
+  like the page does. With `vite-plugin-pwa`, add `wasm` to the glob patterns
+  and raise the size limit, because the largest wasm is about 1.94 MB:
 
   ```ts
   VitePWA({
@@ -281,10 +283,19 @@ your app's job (see below).
   });
   ```
 
+  qrcast starts its workers one at a time (a receiver with `[cimbar(), qr()]`
+  has up to five). When WebKit (Safari, and every browser on iOS) creates
+  several workers at once, only the first one goes through the page's service
+  worker, and the others fail offline.
+
 - **Served from another origin** (for example an ESM CDN): browsers do not
   start workers from another origin, so a transfer fails with
   `codec-init-failed`. Host the files yourself and pass `workerFactory`
   (and `glueUrl` and `wasmUrl` if needed) to `cimbar()` or `qr()`.
+- **`workerFactory`** receives the URL of the bundled worker script, which
+  must run as a classic worker, and returns the worker. qrcast uses only its
+  `onmessage`, `onerror`, `onmessageerror`, `postMessage` and `terminate`
+  members, so the factory may return a wrapper that forwards these.
 
 ## Requirements
 

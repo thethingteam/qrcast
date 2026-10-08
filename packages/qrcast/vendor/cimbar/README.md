@@ -1,6 +1,6 @@
 # libcimbar (vendored)
 
-The official libcimbar wasm release, used by the `qrcast/cimbar` codec. The
+The official libcimbar wasm release, used by the `@thethingteam/qrcast/cimbar` codec. The
 build copies these files to `dist/codecs/cimbar/`.
 
 **Do not modify these files.** They are MPL-2.0 source files, kept byte for

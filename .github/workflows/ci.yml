@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The demo's types come from the built package, so build first.
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm --filter @thethingteam/qrcast exec playwright install --with-deps chromium
+      - run: pnpm test:browser
+      - run: pnpm smoke
+      # Everything a publish does except the upload.
+      - run: pnpm publish --dry-run --no-git-checks
+        working-directory: packages/qrcast

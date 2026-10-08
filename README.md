@@ -20,11 +20,40 @@ the bytes back. No network, no pairing, no back channel.
 - **One-way.** Works across an air gap: the receiver never talks back to the
   sender.
 
+## Install
+
+The package is published to GitHub Packages as `@thethingteam/qrcast`, and
+GitHub requires a token even to install it. Two files do the setup.
+
+In your project's `.npmrc` (committed; it holds no secret):
+
+```ini
+@thethingteam:registry=https://npm.pkg.github.com
+```
+
+In your own `~/.npmrc` (never committed), a token with the `read:packages`
+scope:
+
+```ini
+//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}
+```
+
+With the GitHub CLI, grant the scope once and export the token in your shell:
+
+```sh
+gh auth refresh -s read:packages
+export NODE_AUTH_TOKEN=$(gh auth token)
+```
+
+Then `pnpm add @thethingteam/qrcast` (or `npm install`). Another repository's
+GitHub Actions can install it too, if the package's settings grant that
+repository access; use `secrets.GITHUB_TOKEN` as `NODE_AUTH_TOKEN` there.
+
 ## Sending
 
 ```ts
-import { cimbar } from 'qrcast/cimbar';
-import { createSender } from 'qrcast/sender';
+import { cimbar } from '@thethingteam/qrcast/cimbar';
+import { createSender } from '@thethingteam/qrcast/sender';
 
 const canvas = document.querySelector('canvas')!;
 const sender = createSender({ codec: cimbar(), canvas });
@@ -61,9 +90,9 @@ sender.stop();
 ## Receiving
 
 ```ts
-import { cimbar } from 'qrcast/cimbar';
-import { qr } from 'qrcast/qr';
-import { createReceiver } from 'qrcast/receiver';
+import { cimbar } from '@thethingteam/qrcast/cimbar';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createReceiver } from '@thethingteam/qrcast/receiver';
 
 const video = document.querySelector('video')!;
 video.srcObject = await navigator.mediaDevices.getUserMedia({
@@ -142,8 +171,8 @@ cimbar. It shows QR codes, and a receiver reads them with the unmodified
 [zxing-wasm](https://github.com/Sec-ant/zxing-wasm) 3.1.4 reader.
 
 ```ts
-import { qr } from 'qrcast/qr';
-import { createSender } from 'qrcast/sender';
+import { qr } from '@thethingteam/qrcast/qr';
+import { createSender } from '@thethingteam/qrcast/sender';
 
 const sender = createSender({ codec: qr({ layers: 3 }), canvas });
 ```
@@ -195,7 +224,7 @@ Every error the library raises is a `QrcastError` with a stable `code` and
 typed `details`:
 
 ```ts
-import { QrcastError } from 'qrcast';
+import { QrcastError } from '@thethingteam/qrcast';
 
 try {
   // ...
@@ -223,7 +252,9 @@ try {
 The codec references its files with `new URL('./file', import.meta.url)`,
 which Vite, webpack, Rollup and esbuild understand: your build copies the
 worker, the libcimbar or zxing-wasm scripts and the wasm files next to your
-own assets, and they are fetched from your origin. qrcast never contacts any other host.
+own assets, and they are fetched from your origin. qrcast never contacts any other host
+and never registers a service worker, so caching those files for offline use is
+your app's job (see below).
 
 - **Vite:** exclude qrcast from dependency pre-bundling, or the files 404 in
   development:
@@ -231,7 +262,7 @@ own assets, and they are fetched from your origin. qrcast never contacts any oth
   ```ts
   // vite.config.ts
   export default defineConfig({
-    optimizeDeps: { exclude: ['qrcast'] },
+    optimizeDeps: { exclude: ['@thethingteam/qrcast'] },
   });
   ```
 
@@ -278,10 +309,11 @@ Requires Node 22+ and pnpm 10.
 
 ```sh
 pnpm install
-pnpm --filter qrcast exec playwright install chromium   # once, for the browser tests
+pnpm --filter @thethingteam/qrcast exec playwright install chromium   # once, for the browser tests
 pnpm build          # tsc and the asset copy: packages/qrcast/dist, then the demo
 pnpm test           # type checks, then the Node tests
 pnpm test:browser   # browser tests in headless Chromium (real cimbar loopback)
+pnpm smoke          # packs the package and builds it into minimal apps: no bundler, Vite, webpack
 pnpm typecheck
 pnpm --filter demo dev   # the demo app over HTTPS, reachable from phones on the LAN
 ```
@@ -293,6 +325,30 @@ density for the screen (QR block size, cimbar mode) and shows the payload's
 size and short SHA-256. The receive page shows the same, says whether a known
 example arrived intact, and previews it. The demo depends on the built
 package, so run `pnpm build` first. Its tests run with `pnpm --filter demo test`.
+
+`pnpm smoke` installs the packed tarball (not the workspace sources) into three
+minimal apps under `smoke/`, builds them, checks that the wasm and worker files
+are emitted, and loads each in headless Chromium, failing on any request that
+leaves the page's origin. Run `pnpm build` first. It needs network access to
+install Vite and webpack.
+
+## Releasing
+
+For maintainers. Releases are built from Conventional Commits (`feat:` and
+`fix:`): release-please keeps a release PR open with the next version and the
+changelog, and merging that PR tags `vX.Y.Z` and publishes
+`@thethingteam/qrcast` to GitHub Packages from GitHub Actions. The workflow
+uses the built-in `GITHUB_TOKEN` with `packages: write`; there is no other
+secret. Before 1.0, a breaking change bumps the minor version. Check the
+release PR's diff before you merge it, because merging publishes.
+
+One-time setup: in the repository's Settings, Actions, General, turn on
+"Allow GitHub Actions to create and approve pull requests". release-please
+needs it to open the release PR.
+
+To roll back a bad release, delete that version in the package's settings on
+GitHub (GitHub Packages does not support `npm deprecate`) and ship a fixed
+patch release.
 
 For reliable reading, make the code as large as the sender's screen allows
 (the demo has a full-screen button) and hold the camera so the code fills much

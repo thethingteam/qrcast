@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      # Opens or updates the release PR. Merging that PR creates the tag and the
+      # GitHub release. PRs opened with GITHUB_TOKEN do not trigger CI; the
+      # release PR only changes the version and CHANGELOG, and the publish job
+      # below runs the build and tests again before it publishes.
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5
+        id: release
+
+  publish:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Publishing to GitHub Packages uses the built-in token; there is no
+      # other secret in this workflow.
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://npm.pkg.github.com
+          scope: '@thethingteam'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      # Type checks, unit tests and the packed-tarball check.
+      - run: pnpm test
+      - run: pnpm publish --no-git-checks
+        working-directory: packages/qrcast
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -132,5 +132,5 @@ Importing the sender entry point SHALL NOT access browser-only APIs, so that
 it can be imported during server-side rendering or in Node.
 
 #### Scenario: Import in Node
-- **WHEN** `qrcast/sender` is imported in Node
+- **WHEN** `@thethingteam/qrcast/sender` is imported in Node
 - **THEN** the import succeeds

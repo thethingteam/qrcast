@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [basicSsl()],
   server: { host: true },
   // Pre-bundling would move qrcast's code away from its wasm and worker files.
-  optimizeDeps: { exclude: ['qrcast'] },
+  optimizeDeps: { exclude: ['@thethingteam/qrcast'] },
   build: {
     rollupOptions: {
       input: {

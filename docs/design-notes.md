@@ -169,87 +169,39 @@ them; new codes need a spec change.
 
 ## 10. Packaging and offline (Decided)
 
-Every user, online or offline, needs the wasm and worker files from somewhere.
-qrcast makes the **consumer's bundler** copy them into the consumer's own
-build output:
-
-- Assets are referenced as `new URL('./file', import.meta.url)`, written
-  literally so bundlers can detect them. No Vite-specific `?url` imports.
-- The package is built with **plain `tsc`** (one output file per source file,
-  not bundled), plus a script that copies the cimbar and zxing wasm, the
-  emscripten glue and the worker scripts next to the emitted JS.
-- Rejected:
-  - CDN loading (zxing-wasm's default is jsDelivr): breaks offline and strict
-    CSP, and makes third-party requests. The zxing wasm is copied into the
-    package and located through `locateFile`.
-  - Base64 inlining: adds about 2.6 MB to everyone's JS, prevents streaming
-    compilation, and needs `blob:` workers that CSP blocks.
-  - Vite library mode (inlines assets as base64) and tsup/esbuild bundling
-    (does not copy the assets, so they 404 at runtime).
-- ESM only, no CommonJS.
-- cimbar is loaded with a dynamic import only when the `cimbar` codec is used,
-  so QR-only users never download its 1.94 MB wasm.
-- For cimbar this is implemented: see the `codec-contract` and
-  `cimbar-codec` specs, the archived `cimbar-codec` design (worker loading,
-  asset URLs), and the README (Vite `optimizeDeps.exclude`, PWA caching,
-  CSP). The QR codec follows the same pattern for zxing: see the `qr-codec`
-  spec and the archived `qr-codec` design.
-- Without a bundler (`<script type="module">`), `import.meta.url` points at
-  the package itself, so the relative asset URLs still resolve. From an ESM
-  CDN on another origin, workers cannot start (`codec-init-failed`); the
-  `publish` change adds smoke tests for webpack and no bundler.
-
-Asset sizes: `cimbar_js.wasm` 1.94 MB (607 KB gzip), `cimbar_js.js` 85 KB.
+Moved to `openspec/specs/package-distribution/` (contents, network-free, bundler
+support), with the rationale and the rejected alternatives (CDN, base64
+inlining, bundled library builds) in the archived `publish` change
+(`openspec/changes/archive/`). For cimbar and QR, the asset loading is in the
+`codec-contract`, `cimbar-codec` and `qr-codec` specs.
 
 ## 11. Package layout (Decided)
 
-- Subpath exports: `.` (core types and `QrcastError`, runs in Node),
-  `./sender`, `./receiver`, `./cimbar` (from `cimbar-codec`) and `./qr` (from
-  `qr-codec`).
-- `sideEffects: false`.
-- Published `dist/`:
-
-```
- dist/
-   index.js                core: envelope, size check, types
-   sender/index.js
-   receiver/index.js
-   codecs/cimbar/          index.js, cimbar-worker.js, cimbar_js.<stamp>.js,
-                           cimbar_js.<stamp>.wasm, LICENSE (MPL-2.0)
-   codecs/qr/              index.js, qr-worker.js, zxing_reader.js,
-                           zxing_reader.wasm, LICENSE (MIT),
-                           LICENSE.zxing-cpp (Apache-2.0)
-```
+Subpath exports (`.`, `./sender`, `./receiver`, `./cimbar`, `./qr`),
+`sideEffects: false` and the `dist/` layout are in `packages/qrcast/package.json`,
+and the `package-distribution` spec checks that the tarball matches them.
 
 ## 12. Repository, tooling and release
 
 Decided:
 
-- New public repo, fresh history. Code, docs, OpenSpec artifacts and commit
+- Public repo, fresh history. Code, docs, OpenSpec artifacts and commit
   messages are all in English. Commits follow Conventional Commits.
-- Published on the public **npm** registry as unscoped `qrcast`. Not GitHub
-  Packages, which requires scoped names and an auth token even to install
-  public packages.
-- Versioning with **release-please**.
-- Package manager **pnpm** (workspaces), language **TypeScript** (strict).
-- CI runs consumer smoke tests in three setups: **Vite**, **webpack**, and
-  **no bundler**. Each builds a minimal app that installs the packed package
-  and checks that the wasm and workers are emitted and load.
+- Published to **GitHub Packages** as `@thethingteam/qrcast`, using the
+  built-in `GITHUB_TOKEN`. The scoped name is fixed from the start, so a later
+  move to public npm (with trusted publishing) keeps the same name. The cost:
+  installing needs a `read:packages` token and a registry setting for the
+  scope. Public npm stays the goal once the API settles; it is deferred, not
+  rejected.
+- Package manager **pnpm** (workspaces), language **TypeScript** (strict),
+  tests with Vitest, Node >= 22.
 - Wire format changes are breaking changes.
+- Versioning, the release PR, publishing and the consumer smoke tests
+  moved to the `package-distribution` spec and the archived `publish` change.
 
 Proposed:
 
-- Layout: `packages/qrcast` (published) and `apps/demo` (Vite, private,
-  deployed to GitHub Pages; the demo itself does not need to work offline).
-- release-please starts at `0.1.0` with `bump-minor-pre-major`, so breaking
-  changes before 1.0 bump the minor version. Release 1.0 once the API and wire
-  format are stable.
-- npm trusted publishing (GitHub Actions OIDC, with provenance), no stored npm
-  token. If pnpm's support for it is unclear, run `npm publish` in the publish
-  step.
-- Tests with Vitest: Node for the core, browser mode (Playwright) for the
-  sender and receiver.
-- Node >= 22.
+- Release 1.0 once the API and wire format are stable.
 
 ## 13. Testing approach
 
@@ -264,7 +216,6 @@ Proposed:
 
 ## 14. Open questions
 
-- Confirm the change order (section 15).
 - Optional whole-payload integrity hash in meta (for example SHA-256).
   Deferred by `core-byte-protocol`: it can be added later as a new meta key,
   because unknown keys are ignored.
@@ -274,9 +225,8 @@ Proposed:
 - cimbar memory limits on phones and tablets: whether to start workers one by
   one and fall back to fewer when an instance cannot be allocated, and an
   option to set the worker count (see section 5.1, field notes).
-- Reserve the `qrcast` name on npm early (also check `qr-cast`).
-- The pnpm trusted publishing flow: verify during setup. (TypeScript 7
-  declaration emit was verified in `core-byte-protocol`.)
+- When to also publish to public npm, and whether the `thethingteam` scope
+  exists there (otherwise a different scope or an unscoped name is needed).
 
 ## 15. Planned changes
 
@@ -286,7 +236,8 @@ Proposed:
    (single segment), plus `apps/demo` and the browser tests.
 3. `qr-codec` (done): the black-and-white and color QR codec, ported from the
    prototype; performance work (worker pool, two-stage decode, 1080p) later.
-4. `publish`: release-please, trusted publishing, consumer smoke tests.
+4. `publish` (done): release-please, publishing to GitHub Packages, consumer
+   smoke tests.
 
 ## 16. Rejected names and prefixes
 

@@ -33,6 +33,11 @@ export async function serve(root) {
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   return {
     origin: `http://127.0.0.1:${server.address().port}`,
-    close: () => new Promise((resolve) => server.close(resolve)),
+    // Also ends keep-alive connections, so the browser cannot reach the server afterwards.
+    close: () =>
+      new Promise((resolve) => {
+        server.close(resolve);
+        server.closeAllConnections();
+      }),
   };
 }

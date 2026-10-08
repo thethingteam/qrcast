@@ -1,12 +1,14 @@
 // Consumer smoke tests: installs the packed `qrcast` tarball into minimal apps
 // (no bundler, Vite, webpack), builds them, checks the output holds the wasm
-// and worker files, and loads each in headless Chromium.
+// and worker files, and loads each in headless Chromium. The Vite app is also
+// checked offline, in Chromium and, with --webkit, in WebKit.
 //
-//   node smoke/run.mjs [plain|vite|webpack ...]
+//   node smoke/run.mjs [--webkit] [plain|vite|webpack ...]
 import { execFileSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkOffline } from './shared/check-offline.mjs';
 import { checkPage } from './shared/check-page.mjs';
 
 const smokeDir = fileURLToPath(new URL('.', import.meta.url));
@@ -16,7 +18,7 @@ const workDir = join(smokeDir, '.work');
 // Pinned, so a new major version of a tool changes the tests only when we say so.
 const projects = {
   plain: { dependencies: {}, build: null, output: '.', assets: 'node_modules/@thethingteam/qrcast/dist' },
-  vite: { dependencies: { vite: '8.3.3' }, build: ['npx', 'vite', 'build'], output: 'dist', assets: 'dist' },
+  vite: { dependencies: { vite: '8.3.3' }, build: ['npx', 'vite', 'build'], output: 'dist', assets: 'dist', offline: true },
   webpack: {
     dependencies: { webpack: '5.111.1', 'webpack-cli': '7.2.3' },
     build: ['npx', 'webpack'],
@@ -26,7 +28,10 @@ const projects = {
   },
 };
 
-const requested = process.argv.slice(2);
+const args = process.argv.slice(2);
+// WebKit needs system libraries the CI runner lacks, so it runs only on request.
+const offlineBrowsers = args.includes('--webkit') ? ['chromium', 'webkit'] : ['chromium'];
+const requested = args.filter((arg) => arg !== '--webkit');
 const names = requested.length > 0 ? requested : Object.keys(projects);
 for (const name of names) {
   if (!(name in projects)) throw new Error(`Unknown smoke project: ${name}`);
@@ -55,7 +60,7 @@ const tarball = join(workDir, filename);
 
 let failed = false;
 for (const name of names) {
-  const { dependencies, build, output, assets, copyHtml } = projects[name];
+  const { dependencies, build, output, assets, copyHtml, offline } = projects[name];
   const dir = join(workDir, name);
   console.log(`\n== smoke: ${name}`);
   cpSync(join(smokeDir, name), dir, { recursive: true });
@@ -76,8 +81,16 @@ for (const name of names) {
   for (const pattern of [/cimbar_js.*\.wasm$/, /zxing_reader.*\.wasm$/, /cimbar-worker.*\.js$/, /qr-worker.*\.js$/]) {
     if (!emitted.some((file) => pattern.test(file))) problems.push(`the build output has no file matching ${pattern}`);
   }
-  if (existsSync(join(dir, output))) problems.push(...(await checkPage(join(dir, output))));
-  else problems.push(`no output directory: ${output}`);
+  if (existsSync(join(dir, output))) {
+    problems.push(...(await checkPage(join(dir, output))));
+    if (offline) {
+      for (const browser of offlineBrowsers) {
+        problems.push(...(await checkOffline(join(dir, output), browser)).map((problem) => `offline in ${browser}: ${problem}`));
+      }
+    }
+  } else {
+    problems.push(`no output directory: ${output}`);
+  }
 
   if (problems.length > 0) {
     failed = true;

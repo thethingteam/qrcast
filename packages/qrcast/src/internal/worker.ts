@@ -1,7 +1,16 @@
 import { QrcastError } from '../errors.js';
 
-/** How long a worker may take to load its scripts and wasm. */
+/** How long a worker may take to load its scripts and wasm, counted from its creation. */
 const INIT_TIMEOUT_MS = 30_000;
+
+/**
+ * Settles when the last queued start has created its worker and that worker
+ * is ready or has failed. When WebKit creates several dedicated workers at
+ * the same time, only the first is controlled by the page's service worker,
+ * so the others fail offline; qrcast therefore starts its workers one at a
+ * time, across all codecs, senders and receivers.
+ */
+let queue: Promise<void> = Promise.resolve();
 
 export interface WorkerStart {
   /** The codec name, for errors. */
@@ -39,8 +48,30 @@ export class CodecWorker<Reply> {
     this.#worker = worker;
   }
 
-  /** Starts the worker and waits until it is ready. Rejects with `codec-init-failed`. */
-  static start<Reply>(options: WorkerStart): Promise<CodecWorker<Reply>> {
+  /**
+   * Starts the worker after every earlier start has settled, and waits until
+   * it is ready. Rejects with `codec-init-failed`, or with the signal's reason
+   * when `signal` aborts first; an aborted start creates no worker, or ends
+   * the one it created.
+   */
+  static start<Reply>(options: WorkerStart, signal?: AbortSignal): Promise<CodecWorker<Reply>> {
+    return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(signal.reason);
+        return;
+      }
+      const onAbort = () => reject(signal!.reason);
+      signal?.addEventListener('abort', onAbort, { once: true });
+      queue = queue.then(() => {
+        signal?.removeEventListener('abort', onAbort);
+        if (signal?.aborted) return;
+        return CodecWorker.#create<Reply>(options, signal).then(resolve, reject);
+      });
+    });
+  }
+
+  /** Creates the worker, sends `init` and waits for `ready`. */
+  static #create<Reply>(options: WorkerStart, signal: AbortSignal | undefined): Promise<CodecWorker<Reply>> {
     const initFailed = (message: string, cause?: unknown) =>
       new QrcastError(
         'codec-init-failed',
@@ -59,14 +90,23 @@ export class CodecWorker<Reply> {
     return new Promise((resolve, reject) => {
       let ready = false;
       const timer = setTimeout(() => {
-        instance.terminate();
-        reject(initFailed(`${options.engine} did not load within ${INIT_TIMEOUT_MS / 1000} s.`));
+        failBeforeReady(`${options.engine} did not load within ${INIT_TIMEOUT_MS / 1000} s.`);
       }, INIT_TIMEOUT_MS);
-      const failBeforeReady = (message: string, cause?: unknown) => {
+      const settle = () => {
         clearTimeout(timer);
+        signal?.removeEventListener('abort', onAbort);
+      };
+      const failBeforeReady = (message: string, cause?: unknown) => {
+        settle();
         instance.terminate();
         reject(initFailed(message, cause));
       };
+      const onAbort = () => {
+        settle();
+        instance.terminate();
+        reject(signal!.reason);
+      };
+      signal?.addEventListener('abort', onAbort, { once: true });
       const abort = (reason: unknown) => {
         if (instance.#closed) return;
         instance.terminate();
@@ -78,7 +118,7 @@ export class CodecWorker<Reply> {
         if (!ready) {
           if (data.type === 'ready') {
             ready = true;
-            clearTimeout(timer);
+            settle();
             resolve(instance);
           } else {
             failBeforeReady(data.reason ?? 'the worker failed.', data.reason);

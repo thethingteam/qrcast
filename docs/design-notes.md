@@ -222,9 +222,11 @@ Proposed:
 - Whether the library exports a helper to sanitize names for downloads
   (basename only, strip control characters, cap at 200 bytes, keep the
   extension).
-- cimbar memory limits on phones and tablets: whether to start workers one by
-  one and fall back to fewer when an instance cannot be allocated, and an
-  option to set the worker count (see section 5.1, field notes).
+- cimbar memory limits on phones and tablets: whether to fall back to fewer
+  workers when an instance cannot be allocated, and an option to set the
+  worker count (see section 5.1, field notes). Workers already start one by
+  one (the `codec-contract` spec, from the `sequential-worker-start` change,
+  for WebKit offline), so the fallback could stop at the first failed one.
 - When to also publish to public npm, and whether the `thethingteam` scope
   exists there (otherwise a different scope or an unscoped name is needed).
 

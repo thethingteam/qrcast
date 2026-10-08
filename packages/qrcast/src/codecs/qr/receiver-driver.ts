@@ -17,6 +17,8 @@ export function createQrReceiver(options: ResolvedQrOptions, hooks: ReceiverHook
   let progress: number | null = null;
   let finished = false;
   let disposed = false;
+  /** Aborted on dispose, so a worker still waiting to start is never created. */
+  const loading = new AbortController();
 
   const stop = () => {
     finished = true;
@@ -57,7 +59,13 @@ export function createQrReceiver(options: ResolvedQrOptions, hooks: ReceiverHook
 
   return {
     async load() {
-      const started = await QrWorker.start(options);
+      let started: QrWorker;
+      try {
+        started = await QrWorker.start(options, loading.signal);
+      } catch (error) {
+        if (disposed) return;
+        throw error;
+      }
       if (disposed) {
         started.terminate();
         return;
@@ -99,6 +107,7 @@ export function createQrReceiver(options: ResolvedQrOptions, hooks: ReceiverHook
 
     dispose() {
       disposed = true;
+      loading.abort();
       stop();
     },
   };

@@ -24,21 +24,30 @@ export type CimbarWorker = CodecWorker<WorkerReply>;
 export const CimbarWorker = {
   /**
    * Starts a worker in `role` and waits until libcimbar is loaded. Rejects
-   * with `codec-init-failed`.
+   * with `codec-init-failed`, or with the signal's reason when `signal`
+   * aborts first.
    */
-  start(options: ResolvedCimbarOptions, role: WorkerRole, mode: number): Promise<CimbarWorker> {
-    return CodecWorker.start<WorkerReply>({
-      codec: 'cimbar',
-      engine: 'libcimbar',
-      workerUrl: WORKER_URL,
-      workerFactory: options.workerFactory,
-      init: {
-        type: 'init',
-        role,
-        mode,
-        glueUrl: options.glueUrl === null ? GLUE_URL.href : pageUrl(options.glueUrl),
-        wasmUrl: options.wasmUrl === null ? WASM_URL.href : pageUrl(options.wasmUrl),
+  start(
+    options: ResolvedCimbarOptions,
+    role: WorkerRole,
+    mode: number,
+    signal?: AbortSignal,
+  ): Promise<CimbarWorker> {
+    return CodecWorker.start<WorkerReply>(
+      {
+        codec: 'cimbar',
+        engine: 'libcimbar',
+        workerUrl: WORKER_URL,
+        workerFactory: options.workerFactory,
+        init: {
+          type: 'init',
+          role,
+          mode,
+          glueUrl: options.glueUrl === null ? GLUE_URL.href : pageUrl(options.glueUrl),
+          wasmUrl: options.wasmUrl === null ? WASM_URL.href : pageUrl(options.wasmUrl),
+        },
       },
-    });
+      signal,
+    );
   },
 };

@@ -7,6 +7,8 @@ import { CimbarWorker, type WorkerReply } from './runtime.js';
 export function createCimbarSender(options: ResolvedCimbarOptions, hooks: SenderHooks): SenderDriver {
   let worker: CimbarWorker | null = null;
   let disposed = false;
+  /** Aborted on dispose, so a worker still waiting to start is never created. */
+  const loading = new AbortController();
   let size = 0;
   let encoded: (() => void) | null = null;
   const frameRequests: ((bitmap: ImageBitmap) => void)[] = [];
@@ -39,7 +41,13 @@ export function createCimbarSender(options: ResolvedCimbarOptions, hooks: Sender
 
     async start(envelope) {
       size = envelope.length;
-      const started = await CimbarWorker.start(options, 'encode', options.sendMode);
+      let started: CimbarWorker;
+      try {
+        started = await CimbarWorker.start(options, 'encode', options.sendMode, loading.signal);
+      } catch (error) {
+        if (disposed) return;
+        throw error;
+      }
       if (disposed) {
         started.terminate();
         return;
@@ -62,6 +70,7 @@ export function createCimbarSender(options: ResolvedCimbarOptions, hooks: Sender
 
     dispose() {
       disposed = true;
+      loading.abort();
       worker?.terminate();
       frameRequests.length = 0;
     },

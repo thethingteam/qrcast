@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/thethingteam/qrcast/compare/v0.1.0...v0.1.1) (2026-10-08)
+
+
+### Bug Fixes
+
+* **qr:** read QR codes anywhere in the camera picture ([#6](https://github.com/thethingteam/qrcast/issues/6)) ([8d0b3a2](https://github.com/thethingteam/qrcast/commit/8d0b3a2dcad269837909dec8ae9ef4f9acf8c2d5)), closes [#5](https://github.com/thethingteam/qrcast/issues/5)
+* start codec workers one at a time so receivers work offline in WebKit ([#10](https://github.com/thethingteam/qrcast/issues/10)) ([036e751](https://github.com/thethingteam/qrcast/commit/036e75198d1af4c309275bd2d22227d896dae8d3)), closes [#7](https://github.com/thethingteam/qrcast/issues/7)
+
 ## 0.1.0 (2026-10-08)
 
 

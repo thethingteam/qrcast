@@ -79,11 +79,8 @@ export function createQrReceiver(options: ResolvedQrOptions, hooks: ReceiverHook
       const target = worker;
       // Counted until the worker replies, or until the capture is dropped here.
       inFlight++;
-      // The central square, cropped before any copy so the transfer stays small.
-      const side = Math.min(frame.displayWidth, frame.displayHeight);
-      const sx = Math.floor((frame.displayWidth - side) / 2);
-      const sy = Math.floor((frame.displayHeight - side) / 2);
-      createImageBitmap(frame, sx, sy, side, side)
+      // The whole capture: a code may be anywhere in the camera picture.
+      createImageBitmap(frame)
         .then(
           (bitmap) => {
             if (finished || disposed) {

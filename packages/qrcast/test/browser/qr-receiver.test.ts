@@ -1,6 +1,10 @@
 import { afterEach, expect, test } from 'vitest';
 import { cimbar } from '../../src/codecs/cimbar/index.js';
+import { FountainEncoder } from '../../src/codecs/qr/fountain.js';
 import { qr, type QrOptions } from '../../src/codecs/qr/index.js';
+import { resolveOptions } from '../../src/codecs/qr/options.js';
+import { chooseVersion, renderPicture } from '../../src/codecs/qr/picture.js';
+import { QrWorker } from '../../src/codecs/qr/runtime.js';
 import type { QrcastCodec } from '../../src/internal/codec.js';
 import { createReceiver, type Receiver } from '../../src/receiver/index.js';
 import { createSender, type Sender } from '../../src/sender/index.js';
@@ -75,6 +79,67 @@ test.each([
   expect(locks).toEqual(['qr']);
   expect(progress.length).toBeGreaterThan(0);
   expect(progress.every((value) => value >= 0 && value <= 1)).toBe(true);
+});
+
+test.each([
+  ['black and white', { layers: 1 as const }],
+  ['color', { layers: 3 as const }],
+])('a %s code in the corner of a landscape capture is read', async (_label, options: QrOptions) => {
+  // The sender's picture, drawn 360 pixels wide in the bottom right corner of
+  // a 1280×720 camera picture: entirely outside the central 720×720 square.
+  const picture = document.createElement('canvas');
+  const stage = document.createElement('canvas');
+  stage.width = 1280;
+  stage.height = 720;
+  const context = stage.getContext('2d')!;
+  const paint = () => {
+    context.fillStyle = '#808080';
+    context.fillRect(0, 0, stage.width, stage.height);
+    if (picture.width > 0) context.drawImage(picture, 910, 350, 360, 360);
+  };
+  paint();
+  const draw = setInterval(paint, 20);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.srcObject = stage.captureStream();
+  video.play().catch(() => {});
+  const sender = createSender({ codec: qr(options), canvas: picture });
+  const receiver = createReceiver({ codecs: [qr()], video });
+  const locks: string[] = [];
+  receiver.on('lock', ({ codec }) => locks.push(codec));
+  cleanups.push(() => {
+    clearInterval(draw);
+    receiver.destroy();
+    sender.destroy();
+    video.remove();
+  });
+  const body = randomBytes(5_000, 28);
+  const result = receiver.start();
+  await sender.start(body);
+  expect(firstDifference((await result).bytes, body)).toBe(-1);
+  expect(locks).toEqual(['qr']);
+});
+
+test('a color picture in the corner of a gray capture is read in all three channels', async () => {
+  const encoder = new FountainEncoder(randomBytes(8_000, 29), 800, 'K3Z9QA');
+  const picture = renderPicture(encoder, chooseVersion(encoder), 3, 0);
+  // The picture at its own size in the bottom right corner of a 3840×2160
+  // gray capture; the central 60 % of the capture is almost all gray.
+  const capture = new OffscreenCanvas(3840, 2160);
+  const context = capture.getContext('2d')!;
+  context.fillStyle = '#808080';
+  context.fillRect(0, 0, capture.width, capture.height);
+  const image = new ImageData(picture.data, picture.width, picture.height);
+  context.putImageData(image, capture.width - picture.width, capture.height - picture.height);
+
+  const worker = await QrWorker.start(resolveOptions({}));
+  cleanups.push(() => worker.terminate());
+  const reply = new Promise<string[]>((resolve) => {
+    worker.onMessage = (message) => resolve(message.texts);
+  });
+  const bitmap = capture.transferToImageBitmap();
+  worker.post({ type: 'decode', bitmap }, [bitmap]);
+  expect((await reply).sort()).toEqual([0, 1, 2].map((position) => encoder.textAtPosition(position)).sort());
 });
 
 test('a missing wasm rejects with codec-init-failed for qr', async () => {

@@ -13,11 +13,11 @@
 'use strict';
 
 (() => {
-  /** Mean saturation (max - min of R, G, B) from which a picture is read as color. */
+  /** Mean saturation (max - min of R, G, B) of a region from which a picture is read as color. */
   const COLOR_THRESHOLD = 24;
-  /** The central part of the picture that is sampled, and samples per side. */
-  const REGION = 0.6;
+  /** Samples per side of the whole picture, and regions per side. */
   const SAMPLES = 64;
+  const REGIONS = 4;
   /** The channels of a color picture, as offsets into RGBA. */
   const CHANNELS = [0, 1, 2];
 
@@ -71,27 +71,37 @@
     return context.getImageData(0, 0, canvas.width, canvas.height);
   }
 
-  /** Mean saturation of the central region, sampled on a grid. */
+  /**
+   * The highest mean saturation among the regions of the picture, each
+   * sampled on a grid. The regions cover the whole picture, so a color code
+   * anywhere in it fills most of at least one region.
+   */
   function saturation(/** @type {ImageData} */ image) {
     const { data, width, height } = image;
-    const w = Math.floor(width * REGION);
-    const h = Math.floor(height * REGION);
-    const x0 = Math.floor((width - w) / 2);
-    const y0 = Math.floor((height - h) / 2);
-    const steps = Math.max(1, Math.min(SAMPLES, w, h));
-    let sum = 0;
-    for (let sy = 0; sy < steps; sy++) {
-      const y = y0 + Math.floor(((sy + 0.5) * h) / steps);
-      for (let sx = 0; sx < steps; sx++) {
-        const x = x0 + Math.floor(((sx + 0.5) * w) / steps);
-        const i = (y * width + x) * 4;
-        const r = /** @type {number} */ (data[i]);
-        const g = /** @type {number} */ (data[i + 1]);
-        const b = /** @type {number} */ (data[i + 2]);
-        sum += Math.max(r, g, b) - Math.min(r, g, b);
+    const steps = Math.max(1, Math.min(SAMPLES / REGIONS, Math.floor(width / REGIONS), Math.floor(height / REGIONS)));
+    let highest = 0;
+    for (let ry = 0; ry < REGIONS; ry++) {
+      for (let rx = 0; rx < REGIONS; rx++) {
+        const x0 = Math.floor((rx * width) / REGIONS);
+        const y0 = Math.floor((ry * height) / REGIONS);
+        const w = Math.floor(((rx + 1) * width) / REGIONS) - x0;
+        const h = Math.floor(((ry + 1) * height) / REGIONS) - y0;
+        let sum = 0;
+        for (let sy = 0; sy < steps; sy++) {
+          const y = y0 + Math.floor(((sy + 0.5) * h) / steps);
+          for (let sx = 0; sx < steps; sx++) {
+            const x = x0 + Math.floor(((sx + 0.5) * w) / steps);
+            const i = (y * width + x) * 4;
+            const r = /** @type {number} */ (data[i]);
+            const g = /** @type {number} */ (data[i + 1]);
+            const b = /** @type {number} */ (data[i + 2]);
+            sum += Math.max(r, g, b) - Math.min(r, g, b);
+          }
+        }
+        highest = Math.max(highest, sum / (steps * steps));
       }
     }
-    return sum / (steps * steps);
+    return highest;
   }
 
   /** One channel of the picture as a grayscale image. */

@@ -197,6 +197,8 @@ const sender = createSender({ codec: qr({ layers: 3 }), canvas });
   modules.
 - Receiving decodes in a worker. About 1 MB is fetched when a receiver starts
   or preloads: the worker, the zxing script (37 KB) and its wasm (954 KB).
+- The receiver reads the whole camera picture, as cimbar does: the code can
+  be anywhere in it, also near the sides of a landscape (laptop) camera.
 - `glueUrl`, `wasmUrl` and `workerFactory` replace the bundled files, the same
   as for cimbar.
 
